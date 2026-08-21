@@ -36,8 +36,18 @@ export const ROOMS: Room[] = [
     gallery: [room1, room2, room3],
     landlord: { name: "Cô Hằng", phone: "0912 345 678", rating: 4.9 },
     reviews: [
-      { author: "Minh Anh", rating: 5, comment: "Phòng sạch sẽ, chủ nhà thân thiện. Rất hài lòng.", date: "03/2026" },
-      { author: "Tuấn Kiệt", rating: 5, comment: "Vị trí thuận tiện, gần trường, an ninh tốt.", date: "01/2026" },
+      {
+        author: "Minh Anh",
+        rating: 5,
+        comment: "Phòng sạch sẽ, chủ nhà thân thiện. Rất hài lòng.",
+        date: "03/2026",
+      },
+      {
+        author: "Tuấn Kiệt",
+        rating: 5,
+        comment: "Vị trí thuận tiện, gần trường, an ninh tốt.",
+        date: "01/2026",
+      },
     ],
     lat: 21.5942,
     lng: 105.8482,
@@ -57,7 +67,12 @@ export const ROOMS: Room[] = [
     gallery: [room2, room3, room1],
     landlord: { name: "Anh Trung", phone: "0987 654 321", rating: 4.8 },
     reviews: [
-      { author: "Hà Linh", rating: 5, comment: "Quản lý chuyên nghiệp, phòng đẹp như hình.", date: "04/2026" },
+      {
+        author: "Hà Linh",
+        rating: 5,
+        comment: "Quản lý chuyên nghiệp, phòng đẹp như hình.",
+        date: "04/2026",
+      },
     ],
     lat: 21.5868,
     lng: 105.8252,
@@ -77,8 +92,18 @@ export const ROOMS: Room[] = [
     gallery: [room3, room1, room2],
     landlord: { name: "Chú Hùng", phone: "0901 222 333", rating: 5.0 },
     reviews: [
-      { author: "Phương Thảo", rating: 5, comment: "View tuyệt vời, sáng nào cũng thấy núi.", date: "02/2026" },
-      { author: "Đức Anh", rating: 4, comment: "Phòng đẹp, hơi xa trung tâm một chút.", date: "12/2025" },
+      {
+        author: "Phương Thảo",
+        rating: 5,
+        comment: "View tuyệt vời, sáng nào cũng thấy núi.",
+        date: "02/2026",
+      },
+      {
+        author: "Đức Anh",
+        rating: 4,
+        comment: "Phòng đẹp, hơi xa trung tâm một chút.",
+        date: "12/2025",
+      },
     ],
     lat: 21.6012,
     lng: 105.8351,
@@ -119,14 +144,6 @@ export const PRICE_BANDS = [
   { label: "2 - 4 triệu", min: 2_000_000, max: 4_000_000 },
   { label: "Trên 4 triệu", min: 4_000_000, max: Infinity },
 ];
-
-export function formatVND(n: number) {
-  if (n >= 1_000_000) {
-    const m = n / 1_000_000;
-    return `${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}tr`;
-  }
-  return n.toLocaleString("vi-VN") + "đ";
-}
 
 export function getRoom(id: string) {
   return ROOMS.find((r) => r.id === id);

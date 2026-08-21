@@ -26,7 +26,7 @@ export default function RoomMiniMap({ lat, lng }: { lat: number; lng: number }) 
       style={{ width: "100%", height: "100%" }}
     >
       <TileLayer
-        attribution='&copy; OpenStreetMap'
+        attribution="&copy; OpenStreetMap"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <Marker position={[lat, lng]} icon={icon} />

@@ -23,6 +23,11 @@ function makePinIcon(active: boolean) {
   });
 }
 
+// Built once: rebuilding a divIcon per marker per render made Leaflet tear down
+// and recreate every pin's DOM node on each state change.
+const PIN_ACTIVE = makePinIcon(true);
+const PIN_IDLE = makePinIcon(false);
+
 function FlyToActive({ activeId }: { activeId: string }) {
   const map = useMap();
   useEffect(() => {
@@ -50,15 +55,19 @@ export default function LeafletMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {ROOMS.map((r) => (
-        <Marker
-          key={r.id}
-          position={[r.lat, r.lng]}
-          icon={makePinIcon(activeId === r.id)}
-          eventHandlers={{ click: () => setActiveId(r.id) }}
-          zIndexOffset={activeId === r.id ? 1000 : 0}
-        />
-      ))}
+      {ROOMS.map((r) => {
+        const active = activeId === r.id;
+        return (
+          <Marker
+            key={r.id}
+            position={[r.lat, r.lng]}
+            icon={active ? PIN_ACTIVE : PIN_IDLE}
+            eventHandlers={{ click: () => setActiveId(r.id) }}
+            zIndexOffset={active ? 1000 : 0}
+            title={r.title}
+          />
+        );
+      })}
       <FlyToActive activeId={activeId} />
     </MapContainer>
   );

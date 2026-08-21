@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
+import { BottomNav } from "@/components/BottomNav";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -36,9 +38,12 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
   const router = useRouter();
+
+  // Logged from an effect, not the render body, so a re-render doesn't log the
+  // same error again.
   useEffect(() => {
+    console.error(error);
   }, [error]);
 
   return (
@@ -76,7 +81,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        // viewport-fit=cover lets the layout paint under the notch/home
+        // indicator; the safe-area utilities in styles.css keep content clear
+        // of them. maximum-scale is deliberately generous — pinch-zoom stays
+        // available, which disabling it would break for low-vision users.
+        content: "width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5",
+      },
+      { name: "theme-color", content: "#fdfaf6" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "Roomy" },
+      { name: "format-detection", content: "telephone=no" },
       { title: "Roomy.tn — Tìm phòng trọ tại Thái Nguyên" },
       { name: "description", content: "Kết nối người thuê và chủ trọ tại Thái Nguyên." },
       { property: "og:type", content: "website" },
@@ -84,6 +102,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.json" },
+      { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -118,10 +139,28 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster />
+        <AppShell />
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function AppShell() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Sign-in is a focused, full-screen task — the tab bar would just invite the
+  // user to abandon it.
+  const showBottomNav = pathname !== "/auth";
+
+  return (
+    <>
+      {/* Reserves the fixed tab bar's height so page content is never covered. */}
+      <div className={showBottomNav ? "pb-nav md:pb-0" : undefined}>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </div>
+      {showBottomNav && <BottomNav />}
+      {/* Lifted above the tab bar so toasts stay readable on phones. */}
+      <Toaster position="top-center" offset={16} mobileOffset={12} />
+    </>
   );
 }

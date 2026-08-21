@@ -28,7 +28,7 @@ function initSchema(db: Database.Database) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      email TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE COLLATE NOCASE,
       password_hash TEXT NOT NULL,
       full_name TEXT,
       phone TEXT,
@@ -137,16 +137,30 @@ function initSchema(db: Database.Database) {
 }
 
 // ---- Password hashing ----
+const KEY_LEN = 64;
+
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  const hash = crypto.scryptSync(password, salt, KEY_LEN).toString("hex");
   return `${salt}:${hash}`;
 }
 
 export function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(":");
-  const result = crypto.scryptSync(password, salt, 64).toString("hex");
-  return result === hash;
+  // A malformed/legacy hash must fail closed rather than throw.
+  const [salt, hash] = (stored ?? "").split(":");
+  if (!salt || !hash) return false;
+
+  const expected = Buffer.from(hash, "hex");
+  if (expected.length !== KEY_LEN) return false;
+
+  const actual = crypto.scryptSync(password, salt, KEY_LEN);
+  return crypto.timingSafeEqual(actual, expected);
+}
+
+// Emails are matched case-insensitively so `Demo@x.vn` and `demo@x.vn`
+// resolve to the same account instead of creating a duplicate.
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
 // ---- UUID helper ----
@@ -162,24 +176,98 @@ function seed(db: Database.Database) {
   // Demo user (landlord)
   db.prepare(
     `INSERT INTO users (id, email, password_hash, full_name, phone, role) VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(demoUserId, "demo@roomy.vn", demoPassword, "Nguyễn Văn Chủ Trọ", "0912 345 678", "landlord");
+  ).run(
+    demoUserId,
+    "demo@roomy.vn",
+    demoPassword,
+    "Nguyễn Văn Chủ Trọ",
+    "0912 345 678",
+    "landlord",
+  );
 
   // Demo tenant user
   const tenantUserId = uuid();
   db.prepare(
     `INSERT INTO users (id, email, password_hash, full_name, phone, role) VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(tenantUserId, "tenant@roomy.vn", hashPassword("123456"), "Trần Thị Thuê", "0987 654 321", "tenant");
+  ).run(
+    tenantUserId,
+    "tenant@roomy.vn",
+    hashPassword("123456"),
+    "Trần Thị Thuê",
+    "0987 654 321",
+    "tenant",
+  );
 
   // ---- Listings (6 phòng) ----
   const listingIds = Array.from({ length: 6 }, () => uuid());
 
   const listings = [
-    { id: listingIds[0], title: "P.101 — Tầng 1", price: 3200000, size: 30, status: "occupied", address: "Ngõ 24 Lương Ngọc Quyến, P. Quang Trung", area: "Phường Quang Trung", electricityRate: 3500, waterRate: 25000 },
-    { id: listingIds[1], title: "P.102 — Tầng 1", price: 2800000, size: 25, status: "occupied", address: "Số 142 Cách Mạng Tháng 8, P. Trưng Vương", area: "Phường Trưng Vương", electricityRate: 3500, waterRate: 25000 },
-    { id: listingIds[2], title: "P.201 — Tầng 2", price: 3800000, size: 35, status: "occupied", address: "Ngõ 6 Z115, P. Tân Thịnh", area: "Phường Tân Thịnh", electricityRate: 3800, waterRate: 27000 },
-    { id: listingIds[3], title: "P.202 — Tầng 2", price: 1500000, size: 18, status: "available", address: "Ngõ 12 Tân Thịnh, P. Quyết Thắng", area: "Phường Quyết Thắng", electricityRate: 3500, waterRate: 25000 },
-    { id: listingIds[4], title: "P.301 — Tầng 3", price: 4200000, size: 40, status: "available", address: "Ngõ 6 Z115, P. Tân Thịnh", area: "Phường Tân Thịnh", electricityRate: 3500, waterRate: 25000 },
-    { id: listingIds[5], title: "P.302 — Tầng 3", price: 2000000, size: 20, status: "maintenance", address: "Ngõ 24 Lương Ngọc Quyến, P. Quang Trung", area: "Phường Quang Trung", electricityRate: 3500, waterRate: 25000 },
+    {
+      id: listingIds[0],
+      title: "P.101 — Tầng 1",
+      price: 3200000,
+      size: 30,
+      status: "occupied",
+      address: "Ngõ 24 Lương Ngọc Quyến, P. Quang Trung",
+      area: "Phường Quang Trung",
+      electricityRate: 3500,
+      waterRate: 25000,
+    },
+    {
+      id: listingIds[1],
+      title: "P.102 — Tầng 1",
+      price: 2800000,
+      size: 25,
+      status: "occupied",
+      address: "Số 142 Cách Mạng Tháng 8, P. Trưng Vương",
+      area: "Phường Trưng Vương",
+      electricityRate: 3500,
+      waterRate: 25000,
+    },
+    {
+      id: listingIds[2],
+      title: "P.201 — Tầng 2",
+      price: 3800000,
+      size: 35,
+      status: "occupied",
+      address: "Ngõ 6 Z115, P. Tân Thịnh",
+      area: "Phường Tân Thịnh",
+      electricityRate: 3800,
+      waterRate: 27000,
+    },
+    {
+      id: listingIds[3],
+      title: "P.202 — Tầng 2",
+      price: 1500000,
+      size: 18,
+      status: "available",
+      address: "Ngõ 12 Tân Thịnh, P. Quyết Thắng",
+      area: "Phường Quyết Thắng",
+      electricityRate: 3500,
+      waterRate: 25000,
+    },
+    {
+      id: listingIds[4],
+      title: "P.301 — Tầng 3",
+      price: 4200000,
+      size: 40,
+      status: "available",
+      address: "Ngõ 6 Z115, P. Tân Thịnh",
+      area: "Phường Tân Thịnh",
+      electricityRate: 3500,
+      waterRate: 25000,
+    },
+    {
+      id: listingIds[5],
+      title: "P.302 — Tầng 3",
+      price: 2000000,
+      size: 20,
+      status: "maintenance",
+      address: "Ngõ 24 Lương Ngọc Quyến, P. Quang Trung",
+      area: "Phường Quang Trung",
+      electricityRate: 3500,
+      waterRate: 25000,
+    },
   ];
 
   const insertListing = db.prepare(
@@ -187,16 +275,56 @@ function seed(db: Database.Database) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const l of listings) {
-    insertListing.run(l.id, demoUserId, l.title, l.price, l.size, l.status, l.address, l.area, l.electricityRate, l.waterRate, null);
+    insertListing.run(
+      l.id,
+      demoUserId,
+      l.title,
+      l.price,
+      l.size,
+      l.status,
+      l.address,
+      l.area,
+      l.electricityRate,
+      l.waterRate,
+      null,
+    );
   }
 
   // ---- Tenants (4 người thuê) ----
   const tenantIds = Array.from({ length: 4 }, () => uuid());
   const tenantsData = [
-    { id: tenantIds[0], name: "Lê Minh Anh", phone: "0912 111 222", email: "minhanh@email.com", idNumber: "001234567890", moveIn: "2025-09-01" },
-    { id: tenantIds[1], name: "Phạm Tuấn Kiệt", phone: "0987 333 444", email: "kiettuan@email.com", idNumber: "001234567891", moveIn: "2025-10-15" },
-    { id: tenantIds[2], name: "Nguyễn Hà Linh", phone: "0901 555 666", email: "halinhnguyen@email.com", idNumber: "001234567892", moveIn: "2026-01-01" },
-    { id: tenantIds[3], name: "Trần Đức Anh", phone: "0978 777 888", email: "ducanh@email.com", idNumber: "001234567893", moveIn: "2026-03-10" },
+    {
+      id: tenantIds[0],
+      name: "Lê Minh Anh",
+      phone: "0912 111 222",
+      email: "minhanh@email.com",
+      idNumber: "001234567890",
+      moveIn: "2025-09-01",
+    },
+    {
+      id: tenantIds[1],
+      name: "Phạm Tuấn Kiệt",
+      phone: "0987 333 444",
+      email: "kiettuan@email.com",
+      idNumber: "001234567891",
+      moveIn: "2025-10-15",
+    },
+    {
+      id: tenantIds[2],
+      name: "Nguyễn Hà Linh",
+      phone: "0901 555 666",
+      email: "halinhnguyen@email.com",
+      idNumber: "001234567892",
+      moveIn: "2026-01-01",
+    },
+    {
+      id: tenantIds[3],
+      name: "Trần Đức Anh",
+      phone: "0978 777 888",
+      email: "ducanh@email.com",
+      idNumber: "001234567893",
+      moveIn: "2026-03-10",
+    },
   ];
 
   const insertTenant = db.prepare(
@@ -210,9 +338,30 @@ function seed(db: Database.Database) {
   // ---- Leases (3 hợp đồng active cho 3 phòng occupied) ----
   const leaseIds = Array.from({ length: 3 }, () => uuid());
   const leasesData = [
-    { id: leaseIds[0], listingId: listingIds[0], tenantId: tenantIds[0], start: "2025-09-01", rent: 3200000, deposit: 3200000 },
-    { id: leaseIds[1], listingId: listingIds[1], tenantId: tenantIds[1], start: "2025-10-15", rent: 2800000, deposit: 2800000 },
-    { id: leaseIds[2], listingId: listingIds[2], tenantId: tenantIds[2], start: "2026-01-01", rent: 3800000, deposit: 5000000 },
+    {
+      id: leaseIds[0],
+      listingId: listingIds[0],
+      tenantId: tenantIds[0],
+      start: "2025-09-01",
+      rent: 3200000,
+      deposit: 3200000,
+    },
+    {
+      id: leaseIds[1],
+      listingId: listingIds[1],
+      tenantId: tenantIds[1],
+      start: "2025-10-15",
+      rent: 2800000,
+      deposit: 2800000,
+    },
+    {
+      id: leaseIds[2],
+      listingId: listingIds[2],
+      tenantId: tenantIds[2],
+      start: "2026-01-01",
+      rent: 3800000,
+      deposit: 5000000,
+    },
   ];
 
   const insertLease = db.prepare(
@@ -227,23 +376,32 @@ function seed(db: Database.Database) {
   const periods = ["2026-06", "2026-07", "2026-08"];
   const meterData = [
     // P.101
-    { listingId: listingIds[0], periods: [
-      { p: "2026-06", eS: 1000, eE: 1120, wS: 50, wE: 58 },
-      { p: "2026-07", eS: 1120, eE: 1250, wS: 58, wE: 67 },
-      { p: "2026-08", eS: 1250, eE: 1395, wS: 67, wE: 75 },
-    ]},
+    {
+      listingId: listingIds[0],
+      periods: [
+        { p: "2026-06", eS: 1000, eE: 1120, wS: 50, wE: 58 },
+        { p: "2026-07", eS: 1120, eE: 1250, wS: 58, wE: 67 },
+        { p: "2026-08", eS: 1250, eE: 1395, wS: 67, wE: 75 },
+      ],
+    },
     // P.102
-    { listingId: listingIds[1], periods: [
-      { p: "2026-06", eS: 2000, eE: 2090, wS: 100, wE: 106 },
-      { p: "2026-07", eS: 2090, eE: 2200, wS: 106, wE: 114 },
-      { p: "2026-08", eS: 2200, eE: 2320, wS: 114, wE: 121 },
-    ]},
+    {
+      listingId: listingIds[1],
+      periods: [
+        { p: "2026-06", eS: 2000, eE: 2090, wS: 100, wE: 106 },
+        { p: "2026-07", eS: 2090, eE: 2200, wS: 106, wE: 114 },
+        { p: "2026-08", eS: 2200, eE: 2320, wS: 114, wE: 121 },
+      ],
+    },
     // P.201
-    { listingId: listingIds[2], periods: [
-      { p: "2026-06", eS: 500, eE: 650, wS: 30, wE: 40 },
-      { p: "2026-07", eS: 650, eE: 810, wS: 40, wE: 51 },
-      { p: "2026-08", eS: 810, eE: 970, wS: 51, wE: 62 },
-    ]},
+    {
+      listingId: listingIds[2],
+      periods: [
+        { p: "2026-06", eS: 500, eE: 650, wS: 30, wE: 40 },
+        { p: "2026-07", eS: 650, eE: 810, wS: 40, wE: 51 },
+        { p: "2026-08", eS: 810, eE: 970, wS: 51, wE: 62 },
+      ],
+    },
   ];
 
   const insertMeter = db.prepare(
@@ -263,29 +421,143 @@ function seed(db: Database.Database) {
   );
 
   // P.101 invoices
-  const e1_06 = 120, w1_06 = 8;
-  const eAmt1_06 = e1_06 * 3500, wAmt1_06 = w1_06 * 25000;
-  insertInvoice.run(uuid(), demoUserId, leaseIds[0], listingIds[0], tenantIds[0], "2026-06", 3200000, e1_06, eAmt1_06, w1_06, wAmt1_06, 0, 3200000 + eAmt1_06 + wAmt1_06, "paid", "2026-07-05T10:00:00Z", "2026-07-10");
+  const e1_06 = 120,
+    w1_06 = 8;
+  const eAmt1_06 = e1_06 * 3500,
+    wAmt1_06 = w1_06 * 25000;
+  insertInvoice.run(
+    uuid(),
+    demoUserId,
+    leaseIds[0],
+    listingIds[0],
+    tenantIds[0],
+    "2026-06",
+    3200000,
+    e1_06,
+    eAmt1_06,
+    w1_06,
+    wAmt1_06,
+    0,
+    3200000 + eAmt1_06 + wAmt1_06,
+    "paid",
+    "2026-07-05T10:00:00Z",
+    "2026-07-10",
+  );
 
-  const e1_07 = 130, w1_07 = 9;
-  const eAmt1_07 = e1_07 * 3500, wAmt1_07 = w1_07 * 25000;
-  insertInvoice.run(uuid(), demoUserId, leaseIds[0], listingIds[0], tenantIds[0], "2026-07", 3200000, e1_07, eAmt1_07, w1_07, wAmt1_07, 0, 3200000 + eAmt1_07 + wAmt1_07, "paid", "2026-08-03T10:00:00Z", "2026-08-10");
+  const e1_07 = 130,
+    w1_07 = 9;
+  const eAmt1_07 = e1_07 * 3500,
+    wAmt1_07 = w1_07 * 25000;
+  insertInvoice.run(
+    uuid(),
+    demoUserId,
+    leaseIds[0],
+    listingIds[0],
+    tenantIds[0],
+    "2026-07",
+    3200000,
+    e1_07,
+    eAmt1_07,
+    w1_07,
+    wAmt1_07,
+    0,
+    3200000 + eAmt1_07 + wAmt1_07,
+    "paid",
+    "2026-08-03T10:00:00Z",
+    "2026-08-10",
+  );
 
   // P.102 invoices
-  const e2_06 = 90, w2_06 = 6;
-  const eAmt2_06 = e2_06 * 3500, wAmt2_06 = w2_06 * 25000;
-  insertInvoice.run(uuid(), demoUserId, leaseIds[1], listingIds[1], tenantIds[1], "2026-06", 2800000, e2_06, eAmt2_06, w2_06, wAmt2_06, 0, 2800000 + eAmt2_06 + wAmt2_06, "paid", "2026-07-08T10:00:00Z", "2026-07-10");
+  const e2_06 = 90,
+    w2_06 = 6;
+  const eAmt2_06 = e2_06 * 3500,
+    wAmt2_06 = w2_06 * 25000;
+  insertInvoice.run(
+    uuid(),
+    demoUserId,
+    leaseIds[1],
+    listingIds[1],
+    tenantIds[1],
+    "2026-06",
+    2800000,
+    e2_06,
+    eAmt2_06,
+    w2_06,
+    wAmt2_06,
+    0,
+    2800000 + eAmt2_06 + wAmt2_06,
+    "paid",
+    "2026-07-08T10:00:00Z",
+    "2026-07-10",
+  );
 
-  const e2_07 = 110, w2_07 = 8;
-  const eAmt2_07 = e2_07 * 3500, wAmt2_07 = w2_07 * 25000;
-  insertInvoice.run(uuid(), demoUserId, leaseIds[1], listingIds[1], tenantIds[1], "2026-07", 2800000, e2_07, eAmt2_07, w2_07, wAmt2_07, 0, 2800000 + eAmt2_07 + wAmt2_07, "unpaid", null, "2026-08-10");
+  const e2_07 = 110,
+    w2_07 = 8;
+  const eAmt2_07 = e2_07 * 3500,
+    wAmt2_07 = w2_07 * 25000;
+  insertInvoice.run(
+    uuid(),
+    demoUserId,
+    leaseIds[1],
+    listingIds[1],
+    tenantIds[1],
+    "2026-07",
+    2800000,
+    e2_07,
+    eAmt2_07,
+    w2_07,
+    wAmt2_07,
+    0,
+    2800000 + eAmt2_07 + wAmt2_07,
+    "unpaid",
+    null,
+    "2026-08-10",
+  );
 
   // P.201 invoices
-  const e3_06 = 150, w3_06 = 10;
-  const eAmt3_06 = e3_06 * 3800, wAmt3_06 = w3_06 * 27000;
-  insertInvoice.run(uuid(), demoUserId, leaseIds[2], listingIds[2], tenantIds[2], "2026-06", 3800000, e3_06, eAmt3_06, w3_06, wAmt3_06, 50000, 3800000 + eAmt3_06 + wAmt3_06 + 50000, "paid", "2026-07-02T10:00:00Z", "2026-07-10");
+  const e3_06 = 150,
+    w3_06 = 10;
+  const eAmt3_06 = e3_06 * 3800,
+    wAmt3_06 = w3_06 * 27000;
+  insertInvoice.run(
+    uuid(),
+    demoUserId,
+    leaseIds[2],
+    listingIds[2],
+    tenantIds[2],
+    "2026-06",
+    3800000,
+    e3_06,
+    eAmt3_06,
+    w3_06,
+    wAmt3_06,
+    50000,
+    3800000 + eAmt3_06 + wAmt3_06 + 50000,
+    "paid",
+    "2026-07-02T10:00:00Z",
+    "2026-07-10",
+  );
 
-  const e3_07 = 160, w3_07 = 11;
-  const eAmt3_07 = e3_07 * 3800, wAmt3_07 = w3_07 * 27000;
-  insertInvoice.run(uuid(), demoUserId, leaseIds[2], listingIds[2], tenantIds[2], "2026-07", 3800000, e3_07, eAmt3_07, w3_07, wAmt3_07, 0, 3800000 + eAmt3_07 + wAmt3_07, "unpaid", null, "2026-08-10");
+  const e3_07 = 160,
+    w3_07 = 11;
+  const eAmt3_07 = e3_07 * 3800,
+    wAmt3_07 = w3_07 * 27000;
+  insertInvoice.run(
+    uuid(),
+    demoUserId,
+    leaseIds[2],
+    listingIds[2],
+    tenantIds[2],
+    "2026-07",
+    3800000,
+    e3_07,
+    eAmt3_07,
+    w3_07,
+    wAmt3_07,
+    0,
+    3800000 + eAmt3_07 + wAmt3_07,
+    "unpaid",
+    null,
+    "2026-08-10",
+  );
 }

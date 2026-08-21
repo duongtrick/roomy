@@ -1,5 +1,16 @@
 export type RoomStatus = "available" | "occupied" | "maintenance";
 
+export const STATUS_ORDER: RoomStatus[] = ["available", "occupied", "maintenance"];
+
+/**
+ * `listings.status` is a free-text column, so anything the DB hands back has to
+ * be narrowed before it can index the label/colour maps — an unknown value used
+ * to yield `undefined` classes and an empty badge.
+ */
+export function toRoomStatus(status: string): RoomStatus {
+  return (STATUS_ORDER as string[]).includes(status) ? (status as RoomStatus) : "available";
+}
+
 export const ROOM_STATUS_LABEL: Record<RoomStatus, string> = {
   available: "Còn trống",
   occupied: "Đã thuê",
@@ -78,7 +89,14 @@ export type Invoice = {
   notes: string | null;
 };
 
+/** Billing period for "now", as `YYYY-MM` in local time. */
 export function currentPeriod(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Today as `YYYY-MM-DD` in local time (`toISOString()` would shift the day). */
+export function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
