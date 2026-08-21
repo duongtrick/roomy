@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Nav, Footer } from "@/components/Nav";
@@ -11,11 +11,6 @@ import { LeasesTab } from "@/components/dashboard/LeasesTab";
 import { MetersTab } from "@/components/dashboard/MetersTab";
 import { InvoicesTab } from "@/components/dashboard/InvoicesTab";
 
-export const Route = createFileRoute("/dashboard")({
-  head: () => ({ meta: [{ title: "Bảng điều khiển — Roomy" }] }),
-  component: Dashboard,
-});
-
 type TabKey = "overview" | "rooms" | "tenants" | "leases" | "meters" | "invoices";
 
 const TABS: { key: TabKey; label: string; short: string; icon: typeof Home }[] = [
@@ -27,7 +22,7 @@ const TABS: { key: TabKey; label: string; short: string; icon: typeof Home }[] =
   { key: "invoices", label: "Hoá đơn", short: "Hoá đơn", icon: Receipt },
 ];
 
-function Dashboard() {
+export function DashboardPage() {
   const { user, isLandlord, loading } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>("overview");
@@ -35,12 +30,12 @@ function Dashboard() {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      navigate({ to: "/auth" });
+      navigate("/auth");
       return;
     }
     if (!isLandlord) {
       toast.error("Trang này chỉ dành cho chủ trọ.");
-      navigate({ to: "/" });
+      navigate("/");
     }
   }, [user, isLandlord, loading, navigate]);
 
@@ -60,19 +55,11 @@ function Dashboard() {
           </h1>
         </div>
 
-        {/*
-          Six tabs do not fit across a 375px screen. Rather than shrink them
-          below a usable touch size, the strip scrolls horizontally with snap
-          points and the active tab is scrolled into view. Icons carry the
-          meaning when a label is clipped.
-        */}
         <div className="sticky top-14 md:top-16 z-30 -mx-4 sm:-mx-6 bg-background/95 backdrop-blur border-b border-border mb-6">
           <div
             role="tablist"
             aria-label="Mục quản lý"
             className="flex gap-1 overflow-x-auto no-scrollbar snap-x px-4 sm:px-6"
-            // Fades the strip's edges so a clipped tab reads as "scroll for
-            // more" rather than a rendering glitch.
             style={{
               maskImage:
                 "linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%)",
@@ -94,7 +81,7 @@ function Dashboard() {
                       inline: "center",
                     });
                   }}
-                  className={`snap-center shrink-0 inline-flex items-center gap-2 px-3 sm:px-4 h-12 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  className={`snap-center shrink-0 inline-flex items-center gap-2 px-3 sm:px-4 h-12 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
                     active
                       ? "border-foreground text-foreground"
                       : "border-transparent text-muted-foreground"

@@ -1,6 +1,7 @@
 import room1 from "@/assets/room-1.jpg";
 import room2 from "@/assets/room-2.jpg";
 import room3 from "@/assets/room-3.jpg";
+export { formatVND, formatVNDExact } from "./format";
 
 export type Room = {
   id: string;

@@ -1,15 +1,5 @@
-import { useMemo, useState } from "react";
-import {
-  getListings,
-  insertListing,
-  updateListing,
-  deleteListing,
-  updateListingStatus,
-} from "@/lib/api/listings.api";
-import { getLeases, insertLease, updateLeaseStatus } from "@/lib/api/leases.api";
-import { getTenants } from "@/lib/api/tenants.api";
-import { getInvoices, insertInvoice } from "@/lib/api/invoices.api";
-import { getMeterReadings, upsertMeterReading } from "@/lib/api/meters.api";
+import { useEffect, useMemo, useState } from "react";
+import { db } from "@/lib/mock-db";
 import { toast } from "sonner";
 import {
   Plus,
@@ -27,14 +17,11 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { formatDate, formatVNDExact } from "@/lib/format";
+import { formatVND } from "@/lib/rooms";
 import {
   ROOM_STATUS_COLOR,
   ROOM_STATUS_LABEL,
-  STATUS_ORDER,
   currentPeriod,
-  today,
-  toRoomStatus,
   type Invoice,
   type Lease,
   type Listing,
@@ -42,16 +29,12 @@ import {
   type RoomStatus,
   type Tenant,
 } from "@/lib/dashboard-types";
-import { useOwnerData } from "@/hooks/use-owner-data";
-import { errorMessage } from "@/lib/errors";
 import {
   EmptyState,
   Field,
-  IconButton,
   Modal,
   PrimaryButton,
   SecondaryButton,
-  Select,
   TextArea,
   TextInput,
 } from "./ui";
@@ -66,31 +49,14 @@ type RoomRow = Listing & {
   currentInvoice: Invoice | null;
 };
 
-type RoomsData = {
-  listings: Listing[];
-  leases: Lease[];
-  tenants: Tenant[];
-  invoices: Invoice[];
-  meters: MeterReading[];
-};
-
-const EMPTY: RoomsData = { listings: [], leases: [], tenants: [], invoices: [], meters: [] };
-
-async function fetchRooms(ownerId: string): Promise<RoomsData> {
-  const [listings, leases, tenants, invoices, meters] = await Promise.all([
-    getListings({ data: { ownerId } }),
-    getLeases({ data: { ownerId } }),
-    getTenants({ data: { ownerId } }),
-    getInvoices({ data: { ownerId } }),
-    getMeterReadings({ data: { ownerId } }),
-  ]);
-  return { listings, leases, tenants, invoices, meters };
-}
+const STATUS_ORDER: RoomStatus[] = ["available", "occupied", "maintenance"];
 
 export function RoomsTab({ ownerId }: { ownerId: string }) {
-  const { data, loading, reload } = useOwnerData(ownerId, fetchRooms, EMPTY);
-  const { listings: items, leases, tenants, invoices, meters } = data;
-
+  const [items, setItems] = useState<Listing[]>([]);
+  const [leases, setLeases] = useState<Lease[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [meters, setMeters] = useState<MeterReading[]>([]);
   const [editing, setEditing] = useState<Listing | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [query, setQuery] = useState("");
@@ -99,20 +65,29 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
 
   const period = currentPeriod();
 
+  const load = () => {
+    setItems(db.getListings());
+    setLeases(db.getLeases());
+    setTenants(db.getTenants());
+    setInvoices(db.getInvoices());
+    setMeters(db.getMeters());
+  };
+
+  useEffect(() => {
+    load();
+  }, [ownerId]);
+
   const rows: RoomRow[] = useMemo(() => {
     return items.map((l) => {
-      const active = leases.find((x) => x.listing_id === l.id && x.status === "active");
+      const active = leases.find(
+        (x) => x.listing_id === l.id && x.status === "active",
+      );
       const tenant = active ? tenants.find((t) => t.id === active.tenant_id) : null;
       const roomInvoices = invoices.filter((i) => i.listing_id === l.id);
       const unpaid = roomInvoices.filter((i) => i.status !== "paid");
       const roomMeters = meters.filter((m) => m.listing_id === l.id);
       const currentMeter = roomMeters.find((m) => m.period === period) ?? null;
-      // Sort explicitly: "most recent earlier period" must not depend on the
-      // order rows happen to come back from the query in.
-      const prevMeter =
-        roomMeters
-          .filter((m) => m.period < period)
-          .sort((a, b) => b.period.localeCompare(a.period))[0] ?? null;
+      const prevMeter = roomMeters.find((m) => m.period < period) ?? null;
       const currentInvoice = roomInvoices.find((i) => i.period === period) ?? null;
       return {
         ...l,
@@ -127,55 +102,44 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
     });
   }, [items, leases, tenants, invoices, meters, period]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (statusFilter !== "all" && toRoomStatus(r.status) !== statusFilter) return false;
-      if (!q) return true;
-      return r.title.toLowerCase().includes(q) || (r.tenantName ?? "").toLowerCase().includes(q);
-    });
-  }, [rows, query, statusFilter]);
-
-  const counts = useMemo(() => {
-    const base = { all: rows.length, available: 0, occupied: 0, maintenance: 0 };
-    for (const r of rows) base[toRoomStatus(r.status)]++;
-    return base;
-  }, [rows]);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Xoá phòng này? Các hợp đồng, hoá đơn và chỉ số liên quan cũng sẽ bị xoá."))
-      return;
-    try {
-      const res = await deleteListing({ data: { id, owner_id: ownerId } });
-      if (!res.ok) throw new Error("Không tìm thấy phòng");
-      toast.success("Đã xoá phòng");
-      setDetailsId((cur) => (cur === id ? null : cur));
-      void reload();
-    } catch (error) {
-      toast.error(errorMessage(error));
+  const filtered = rows.filter((r) => {
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      return (
+        r.title.toLowerCase().includes(q) ||
+        (r.tenantName ?? "").toLowerCase().includes(q)
+      );
     }
+    return true;
+  });
+
+  const counts = {
+    all: rows.length,
+    available: rows.filter((r) => r.status === "available").length,
+    occupied: rows.filter((r) => r.status === "occupied").length,
+    maintenance: rows.filter((r) => r.status === "maintenance").length,
   };
 
-  const detailsRow = detailsId ? (rows.find((r) => r.id === detailsId) ?? null) : null;
-  const detailsLease = detailsRow
-    ? (leases.find((l) => l.listing_id === detailsRow.id && l.status === "active") ?? null)
-    : null;
-  const detailsTenant = detailsLease
-    ? (tenants.find((t) => t.id === detailsLease.tenant_id) ?? null)
-    : null;
-  const detailsInvoices = detailsRow
-    ? invoices
-        .filter((i) => i.listing_id === detailsRow.id)
-        .sort((a, b) => b.period.localeCompare(a.period))
-        .slice(0, 6)
-    : [];
+  const handleDelete = (id: string) => {
+    if (!confirm("Xoá phòng này? Các hợp đồng, hoá đơn và chỉ số liên quan cũng sẽ bị xoá."))
+      return;
+    db.deleteListing(id);
+    toast.success("Đã xoá phòng");
+    load();
+  };
+
+  const detailsRow = detailsId ? rows.find((r) => r.id === detailsId) ?? null : null;
+  const detailsLease = detailsRow ? leases.find((l) => l.listing_id === detailsRow.id && l.status === "active") ?? null : null;
+  const detailsTenant = detailsLease ? tenants.find((t) => t.id === detailsLease.tenant_id) ?? null : null;
+  const detailsInvoices = detailsRow ? invoices.filter((i) => i.listing_id === detailsRow.id).sort((a, b) => b.period.localeCompare(a.period)).slice(0, 6) : [];
 
   return (
     <div>
       {/* Header */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 mb-6 sm:flex sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-xl sm:text-2xl font-serif italic font-bold truncate">Phòng trọ</h2>
+          <h2 className="text-2xl font-serif italic font-bold truncate">Phòng trọ</h2>
           <p className="text-sm text-muted-foreground mt-1">
             {counts.all} phòng · {counts.occupied} đã thuê · {counts.available} trống
           </p>
@@ -185,7 +149,6 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
             setEditing(null);
             setShowForm(true);
           }}
-          aria-label="Thêm phòng"
         >
           <Plus className="size-4" />
           <span className="hidden sm:inline">Thêm phòng</span>
@@ -200,10 +163,10 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Tìm theo tên phòng hoặc người thuê..."
-            className="w-full pl-10 pr-4 h-12 sm:h-10 rounded-xl border border-border bg-background text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-foreground/40 transition"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:border-foreground/40"
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex gap-1 overflow-x-auto -mx-1 px-1 sm:mx-0 sm:px-0">
           {(["all", ...STATUS_ORDER] as const).map((s) => {
             const active = statusFilter === s;
             const label = s === "all" ? "Tất cả" : ROOM_STATUS_LABEL[s];
@@ -212,16 +175,14 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-4 h-10 rounded-full text-xs font-medium border transition-colors active:scale-95 ${
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                   active
                     ? "bg-foreground text-background border-foreground"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {label}
-                <span
-                  className={`px-1.5 rounded-full text-[10px] ${active ? "bg-background/20" : "bg-foreground/5"}`}
-                >
+                <span className={`px-1.5 rounded-full text-[10px] ${active ? "bg-background/20" : "bg-foreground/5"}`}>
                   {n}
                 </span>
               </button>
@@ -232,28 +193,21 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
 
       {showForm && (
         <RoomForm
-          // Keyed so switching which room is edited re-seeds the form state.
-          key={editing?.id ?? "new"}
-          ownerId={ownerId}
           initial={editing}
           tenants={tenants}
           activeLease={
-            editing
-              ? (leases.find((l) => l.listing_id === editing.id && l.status === "active") ?? null)
-              : null
+            editing ? leases.find((l) => l.listing_id === editing.id && l.status === "active") ?? null : null
           }
           onClose={() => setShowForm(false)}
           onSaved={() => {
             setShowForm(false);
-            void reload();
+            load();
           }}
         />
       )}
 
       {/* Body */}
-      {loading ? (
-        <p className="text-muted-foreground">Đang tải...</p>
-      ) : rows.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
           icon={<Home className="size-12" />}
           title="Chưa có phòng nào"
@@ -290,9 +244,9 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
-                        className={`inline-block text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full border ${ROOM_STATUS_COLOR[toRoomStatus(r.status)]}`}
+                        className={`inline-block text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full border ${ROOM_STATUS_COLOR[(STATUS_ORDER.includes(r.status as RoomStatus) ? r.status : "available") as RoomStatus]}`}
                       >
-                        {ROOM_STATUS_LABEL[toRoomStatus(r.status)]}
+                        {ROOM_STATUS_LABEL[(STATUS_ORDER.includes(r.status as RoomStatus) ? r.status : "available") as RoomStatus]}
                       </span>
                       {r.status === "occupied" && !r.currentMeter && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
@@ -308,7 +262,7 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-serif italic font-bold text-primary">
-                      {formatVNDExact(r.leaseRent ?? r.price)}
+                      {formatVND(r.leaseRent ?? r.price)}
                     </p>
                     <p className="text-[10px] text-muted-foreground">/tháng</p>
                   </div>
@@ -324,39 +278,40 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <Zap className="size-3.5 shrink-0" />
-                    {formatVNDExact(r.electricity_rate)}/kWh
+                    {formatVND(r.electricity_rate)}/kWh
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <Droplet className="size-3.5 shrink-0" />
-                    {formatVNDExact(r.water_rate)}/m³
+                    {formatVND(r.water_rate)}/m³
                   </span>
                 </div>
                 {r.unpaidCount > 0 && (
                   <div className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20">
-                    {r.unpaidCount} hoá đơn chưa thu · {formatVNDExact(r.unpaidTotal)}
+                    {r.unpaidCount} hoá đơn chưa thu · {formatVND(r.unpaidTotal)}
                   </div>
                 )}
                 <div className="mt-3 pt-3 border-t border-border flex items-center justify-end gap-1">
-                  <IconButton
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditing(r);
                       setShowForm(true);
                     }}
-                    aria-label={`Sửa ${r.title}`}
+                    className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-foreground/5 cursor-pointer"
+                    aria-label="Sửa"
                   >
                     <Edit3 className="size-4" />
-                  </IconButton>
-                  <IconButton
+                  </button>
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(r.id);
                     }}
-                    aria-label={`Xoá ${r.title}`}
-                    className="hover:text-destructive hover:bg-destructive/10"
+                    className="text-muted-foreground hover:text-destructive p-2 rounded-full hover:bg-destructive/10 cursor-pointer"
+                    aria-label="Xoá"
                   >
                     <Trash2 className="size-4" />
-                  </IconButton>
+                  </button>
                 </div>
               </li>
             ))}
@@ -378,7 +333,9 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
               </thead>
               <tbody>
                 {filtered.map((r) => {
-                  const status = toRoomStatus(r.status);
+                  const status = (STATUS_ORDER.includes(r.status as RoomStatus)
+                    ? r.status
+                    : "available") as RoomStatus;
                   return (
                     <tr
                       key={r.id}
@@ -387,7 +344,11 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium">{r.title}</div>
-                        {r.size && <div className="text-xs text-muted-foreground">{r.size} m²</div>}
+                        {r.size && (
+                          <div className="text-xs text-muted-foreground">
+                            {r.size} m²
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1">
@@ -426,15 +387,15 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
-                        {formatVNDExact(r.leaseRent ?? r.price)}
+                        {formatVND(r.leaseRent ?? r.price)}
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-muted-foreground whitespace-nowrap">
-                        {formatVNDExact(r.electricity_rate)} / {formatVNDExact(r.water_rate)}
+                        {formatVND(r.electricity_rate)} / {formatVND(r.water_rate)}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {r.unpaidCount > 0 ? (
                           <span className="text-destructive font-medium">
-                            {formatVNDExact(r.unpaidTotal)}
+                            {formatVND(r.unpaidTotal)}
                             <span className="text-[10px] font-normal block">
                               {r.unpaidCount} hoá đơn
                             </span>
@@ -445,26 +406,27 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
                       </td>
                       <td className="px-2 py-3">
                         <div className="flex items-center justify-end gap-0.5">
-                          <IconButton
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setEditing(r);
                               setShowForm(true);
                             }}
-                            aria-label={`Sửa ${r.title}`}
+                            className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-foreground/5 cursor-pointer"
+                            aria-label="Sửa"
                           >
                             <Edit3 className="size-4" />
-                          </IconButton>
-                          <IconButton
+                          </button>
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(r.id);
                             }}
-                            aria-label={`Xoá ${r.title}`}
-                            className="hover:text-destructive hover:bg-destructive/10"
+                            className="text-muted-foreground hover:text-destructive p-2 rounded-full hover:bg-destructive/10 cursor-pointer"
+                            aria-label="Xoá"
                           >
                             <Trash2 className="size-4" />
-                          </IconButton>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -478,14 +440,13 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
 
       {detailsRow && (
         <RoomDetails
-          ownerId={ownerId}
           period={period}
           row={detailsRow}
           lease={detailsLease}
           tenant={detailsTenant}
           invoices={detailsInvoices}
           onClose={() => setDetailsId(null)}
-          onChanged={reload}
+          onChanged={load}
           onEdit={() => {
             setEditing(detailsRow);
             setDetailsId(null);
@@ -498,14 +459,12 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
 }
 
 function RoomForm({
-  ownerId,
   initial,
   tenants,
   activeLease,
   onClose,
   onSaved,
 }: {
-  ownerId: string;
   initial: Listing | null;
   tenants: Tenant[];
   activeLease: Lease | null;
@@ -515,107 +474,72 @@ function RoomForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [price, setPrice] = useState(String(initial?.price ?? ""));
   const [size, setSize] = useState(String(initial?.size ?? ""));
-  const [status, setStatus] = useState<RoomStatus>(toRoomStatus(initial?.status ?? ""));
-  const [electricityRate, setElectricityRate] = useState(String(initial?.electricity_rate ?? 3500));
+  const [status, setStatus] = useState<RoomStatus>(
+    STATUS_ORDER.includes(initial?.status as RoomStatus)
+      ? (initial?.status as RoomStatus)
+      : "available",
+  );
+  const [electricityRate, setElectricityRate] = useState(
+    String(initial?.electricity_rate ?? 3500),
+  );
   const [waterRate, setWaterRate] = useState(String(initial?.water_rate ?? 25000));
   const [description, setDescription] = useState(initial?.description ?? "");
   const [tenantId, setTenantId] = useState<string>(activeLease?.tenant_id ?? "");
 
-  // Optional public-listing fields (collapsed by default)
   const [showPublic, setShowPublic] = useState(false);
   const [address, setAddress] = useState(initial?.address ?? "");
   const [area, setArea] = useState(initial?.area ?? "");
   const [imageUrl, setImageUrl] = useState(initial?.image_url ?? "");
 
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy) return;
     if (status === "occupied" && !tenantId) {
       toast.error("Vui lòng chọn người thuê cho phòng này.");
       return;
     }
-    if (!title.trim()) {
-      toast.error("Vui lòng nhập tên phòng.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const payload = {
-        owner_id: ownerId,
-        title: title.trim(),
-        description: description || null,
-        price: Number(price),
-        size: size ? Number(size) : null,
-        address: address || null,
-        area: area || null,
-        image_url: imageUrl || null,
-        status,
-        electricity_rate: Number(electricityRate) || 0,
-        water_rate: Number(waterRate) || 0,
-      };
-      const saved = initial
-        ? await updateListing({ data: { ...payload, id: initial.id } })
-        : await insertListing({ data: payload });
+    const saved = db.saveListing({
+      id: initial?.id,
+      title: title.trim(),
+      description: description || null,
+      price: Number(price),
+      size: size ? Number(size) : null,
+      address: address || null,
+      area: area || null,
+      image_url: imageUrl || null,
+      status,
+      electricity_rate: Number(electricityRate) || 0,
+      water_rate: Number(waterRate) || 0,
+    });
 
-      const listingId = saved?.id ?? initial?.id;
-      if (!listingId) throw new Error("Không lưu được phòng");
-
-      // Keep the active lease in step with the tenant picked above.
-      const tenantChanged = !activeLease || activeLease.tenant_id !== tenantId;
-      if (status === "occupied" && tenantId && tenantChanged) {
+    const listingId = saved.id;
+    if (status === "occupied" && tenantId) {
+      if (activeLease && activeLease.tenant_id === tenantId) {
+        // unchanged
+      } else {
         if (activeLease) {
-          await updateLeaseStatus({
-            data: { id: activeLease.id, owner_id: ownerId, status: "ended" },
-          });
+          db.updateLeaseStatus(activeLease.id, "ended");
         }
-        await insertLease({
-          data: {
-            owner_id: ownerId,
-            listing_id: listingId,
-            tenant_id: tenantId,
-            start_date: today(),
-            monthly_rent: Number(price) || 0,
-            deposit: 0,
-            status: "active",
-          },
-        });
-      } else if (status !== "occupied" && activeLease) {
-        await updateLeaseStatus({
-          data: { id: activeLease.id, owner_id: ownerId, status: "ended" },
+        const today = new Date().toISOString().slice(0, 10);
+        db.saveLease({
+          listing_id: listingId,
+          tenant_id: tenantId,
+          start_date: today,
+          monthly_rent: Number(price) || 0,
+          deposit: 0,
+          status: "active",
         });
       }
-
-      // `updateLeaseStatus`/`insertLease` resync occupancy on the server, which
-      // can override the status just saved above — reassert the explicit choice.
-      await updateListingStatus({ data: { id: listingId, owner_id: ownerId, status } });
-
-      toast.success(initial ? "Đã cập nhật phòng" : "Đã thêm phòng");
-      onSaved();
-    } catch (error) {
-      toast.error(errorMessage(error));
-    } finally {
-      setBusy(false);
+    } else if (status !== "occupied" && activeLease) {
+      db.updateLeaseStatus(activeLease.id, "ended");
     }
+
+    toast.success(initial ? "Đã cập nhật phòng" : "Đã thêm phòng");
+    onSaved();
   };
 
   return (
-    <Modal
-      title={initial ? "Chỉnh sửa phòng" : "Thêm phòng mới"}
-      onClose={onClose}
-      footer={
-        <div className="flex gap-3">
-          <SecondaryButton onClick={onClose} className="flex-1">
-            Huỷ
-          </SecondaryButton>
-          <PrimaryButton type="submit" form="room-form" disabled={busy} className="flex-1">
-            {busy ? "Đang lưu..." : initial ? "Lưu thay đổi" : "Thêm phòng"}
-          </PrimaryButton>
-        </div>
-      }
-    >
-      <form id="room-form" onSubmit={submit} className="space-y-4">
+    <Modal title={initial ? "Chỉnh sửa phòng" : "Thêm phòng mới"} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
         <Field label="Tên / mã phòng">
           <TextInput
             value={title}
@@ -626,11 +550,10 @@ function RoomForm({
           />
         </Field>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Giá thuê / tháng (VNĐ)">
             <TextInput
               type="number"
-              inputMode="numeric"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               required
@@ -640,7 +563,6 @@ function RoomForm({
           <Field label="Diện tích (m²)">
             <TextInput
               type="number"
-              inputMode="numeric"
               value={size}
               onChange={(e) => setSize(e.target.value)}
               min={0}
@@ -648,11 +570,10 @@ function RoomForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Giá điện / kWh">
             <TextInput
               type="number"
-              inputMode="numeric"
               value={electricityRate}
               onChange={(e) => setElectricityRate(e.target.value)}
               min={0}
@@ -661,7 +582,6 @@ function RoomForm({
           <Field label="Giá nước / m³">
             <TextInput
               type="number"
-              inputMode="numeric"
               value={waterRate}
               onChange={(e) => setWaterRate(e.target.value)}
               min={0}
@@ -676,7 +596,7 @@ function RoomForm({
                 key={s}
                 type="button"
                 onClick={() => setStatus(s)}
-                className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors cursor-pointer ${
                   status === s
                     ? `${ROOM_STATUS_COLOR[s]} border-current`
                     : "border-border text-muted-foreground hover:text-foreground"
@@ -692,19 +612,22 @@ function RoomForm({
           <Field label="Người thuê hiện tại">
             {tenants.length === 0 ? (
               <div className="text-xs text-muted-foreground px-3 py-2.5 rounded-xl border border-dashed border-border">
-                Chưa có người thuê. Vào tab{" "}
-                <span className="font-medium text-foreground">Người thuê</span> để thêm trước.
+                Chưa có người thuê. Vào tab <span className="font-medium text-foreground">Người thuê</span> để thêm trước.
               </div>
             ) : (
-              <Select value={tenantId} onChange={(e) => setTenantId(e.target.value)} required>
+              <select
+                value={tenantId}
+                onChange={(e) => setTenantId(e.target.value)}
+                required
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background focus:outline-none focus:border-foreground/40 text-sm"
+              >
                 <option value="">— Chọn người thuê —</option>
                 {tenants.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.full_name}
-                    {t.phone ? ` · ${t.phone}` : ""}
+                    {t.full_name}{t.phone ? ` · ${t.phone}` : ""}
                   </option>
                 ))}
-              </Select>
+              </select>
             )}
             {activeLease && tenantId && activeLease.tenant_id !== tenantId && (
               <p className="text-[11px] text-amber-700 mt-1.5">
@@ -723,12 +646,11 @@ function RoomForm({
           />
         </Field>
 
-        {/* Optional public listing block */}
         <div className="border border-dashed border-border rounded-xl">
           <button
             type="button"
             onClick={() => setShowPublic((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted-foreground hover:text-foreground"
+            className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
           >
             <span className="flex items-center gap-2">
               {showPublic ? (
@@ -750,7 +672,10 @@ function RoomForm({
                 />
               </Field>
               <Field label="Địa chỉ chi tiết">
-                <TextInput value={address} onChange={(e) => setAddress(e.target.value)} />
+                <TextInput
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
               </Field>
               <Field label="Link ảnh">
                 <TextInput
@@ -762,13 +687,21 @@ function RoomForm({
             </div>
           )}
         </div>
+
+        <div className="flex gap-3 pt-2">
+          <SecondaryButton type="button" onClick={onClose} className="flex-1">
+            Huỷ
+          </SecondaryButton>
+          <PrimaryButton type="submit" className="flex-1">
+            {initial ? "Lưu thay đổi" : "Thêm phòng"}
+          </PrimaryButton>
+        </div>
       </form>
     </Modal>
   );
 }
 
 function RoomDetails({
-  ownerId,
   period,
   row,
   lease,
@@ -778,7 +711,6 @@ function RoomDetails({
   onEdit,
   onChanged,
 }: {
-  ownerId: string;
   period: string;
   row: RoomRow;
   lease: Lease | null;
@@ -789,11 +721,9 @@ function RoomDetails({
   onChanged: () => void;
 }) {
   const [showMeter, setShowMeter] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const cm = row.currentMeter;
   const pm = row.prevMeter;
-  // For meter form defaults: start = previous period's end (carried forward)
   const defaultEStart = cm?.electricity_start ?? pm?.electricity_end ?? 0;
   const defaultWStart = cm?.water_start ?? pm?.water_end ?? 0;
 
@@ -802,101 +732,61 @@ function RoomDetails({
   const [wStart, setWStart] = useState(String(defaultWStart));
   const [wEnd, setWEnd] = useState(String(cm?.water_end ?? ""));
 
-  const saveMeter = async () => {
-    if (busy) return;
-    if (Number(eEnd) < Number(eStart) || Number(wEnd) < Number(wStart)) {
-      toast.error("Chỉ số cuối kỳ không được nhỏ hơn chỉ số đầu kỳ.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await upsertMeterReading({
-        data: {
-          owner_id: ownerId,
-          listing_id: row.id,
-          period,
-          electricity_start: Number(eStart) || 0,
-          electricity_end: Number(eEnd) || 0,
-          water_start: Number(wStart) || 0,
-          water_end: Number(wEnd) || 0,
-        },
-      });
-      if (!res.ok) throw new Error(res.error ?? "Không lưu được chỉ số");
-      toast.success(`Đã lưu chỉ số kỳ ${period}`);
-      setShowMeter(false);
-      onChanged();
-    } catch (error) {
-      toast.error(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
+  const saveMeter = () => {
+    db.saveMeter({
+      listing_id: row.id,
+      period,
+      electricity_start: Number(eStart) || 0,
+      electricity_end: Number(eEnd) || 0,
+      water_start: Number(wStart) || 0,
+      water_end: Number(wEnd) || 0,
+    });
+    toast.success(`Đã lưu chỉ số kỳ ${period}`);
+    setShowMeter(false);
+    onChanged();
   };
 
-  const createInvoice = async () => {
-    if (busy) return;
-    if (!cm) {
-      toast.error("Hãy ghi chỉ số điện nước kỳ này trước.");
-      return;
-    }
-    if (row.currentInvoice) {
-      toast.info("Hoá đơn kỳ này đã tồn tại.");
-      return;
-    }
+  const createInvoice = () => {
+    if (!cm) return toast.error("Hãy ghi chỉ số điện nước kỳ này trước.");
+    if (row.currentInvoice) return toast.info("Hoá đơn kỳ này đã tồn tại.");
     const kwh = Math.max(0, cm.electricity_end - cm.electricity_start);
     const m3 = Math.max(0, cm.water_end - cm.water_start);
     const eAmt = kwh * row.electricity_rate;
     const wAmt = m3 * row.water_rate;
     const rent = row.leaseRent ?? row.price;
     const total = rent + eAmt + wAmt;
-    setBusy(true);
-    try {
-      const res = await insertInvoice({
-        data: {
-          owner_id: ownerId,
-          lease_id: lease?.id ?? null,
-          listing_id: row.id,
-          tenant_id: tenant?.id ?? null,
-          period,
-          rent_amount: rent,
-          electricity_kwh: kwh,
-          electricity_amount: eAmt,
-          water_m3: m3,
-          water_amount: wAmt,
-          other_amount: 0,
-          total_amount: total,
-          status: "unpaid",
-        },
-      });
-      if (res.error) throw new Error(res.error);
-      toast.success(`Đã tạo hoá đơn kỳ ${period} · ${formatVNDExact(total)}`);
-      onChanged();
-    } catch (error) {
-      toast.error(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
+
+    db.saveInvoice({
+      lease_id: lease?.id ?? null,
+      listing_id: row.id,
+      tenant_id: tenant?.id ?? null,
+      period,
+      rent_amount: rent,
+      electricity_kwh: kwh,
+      electricity_amount: eAmt,
+      water_m3: m3,
+      water_amount: wAmt,
+      other_amount: 0,
+      total_amount: total,
+      status: "unpaid",
+    });
+    toast.success(`Đã tạo hoá đơn kỳ ${period} · ${formatVND(total)}`);
+    onChanged();
   };
 
-  const status = toRoomStatus(row.status);
+  const status = (STATUS_ORDER.includes(row.status as RoomStatus)
+    ? row.status
+    : "available") as RoomStatus;
+  const fmtDate = (d: string | null) =>
+    d ? new Date(d).toLocaleDateString("vi-VN") : "—";
+
   const kwhUsed = cm ? Math.max(0, cm.electricity_end - cm.electricity_start) : 0;
   const m3Used = cm ? Math.max(0, cm.water_end - cm.water_start) : 0;
   const eAmt = kwhUsed * row.electricity_rate;
   const wAmt = m3Used * row.water_rate;
+
   return (
-    <Modal
-      title={row.title}
-      onClose={onClose}
-      footer={
-        <div className="flex gap-3">
-          <SecondaryButton onClick={onClose} className="flex-1">
-            Đóng
-          </SecondaryButton>
-          <PrimaryButton onClick={onEdit} className="flex-1">
-            <Edit3 className="size-4" /> Chỉnh sửa
-          </PrimaryButton>
-        </div>
-      }
-    >
+    <Modal title={row.title} onClose={onClose}>
       <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -904,12 +794,13 @@ function RoomDetails({
           >
             {ROOM_STATUS_LABEL[status]}
           </span>
-          {row.size && <span className="text-xs text-muted-foreground">{row.size} m²</span>}
+          {row.size && (
+            <span className="text-xs text-muted-foreground">{row.size} m²</span>
+          )}
           <span className="ml-auto font-serif italic font-bold text-primary">
-            {formatVNDExact(row.leaseRent ?? row.price)}
+            {formatVND(row.leaseRent ?? row.price)}
             <span className="text-xs text-muted-foreground font-sans not-italic font-normal">
-              {" "}
-              /tháng
+              {" "}/tháng
             </span>
           </span>
         </div>
@@ -925,44 +816,15 @@ function RoomDetails({
                 {tenant.full_name}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                {tenant.phone && (
-                  <div>
-                    SĐT: <span className="text-foreground">{tenant.phone}</span>
-                  </div>
-                )}
-                {tenant.email && (
-                  <div>
-                    Email: <span className="text-foreground">{tenant.email}</span>
-                  </div>
-                )}
-                {tenant.id_number && (
-                  <div>
-                    CCCD: <span className="text-foreground">{tenant.id_number}</span>
-                  </div>
-                )}
-                {tenant.move_in_date && (
-                  <div>
-                    Ngày vào:{" "}
-                    <span className="text-foreground">{formatDate(tenant.move_in_date)}</span>
-                  </div>
-                )}
-                {lease && (
-                  <div>
-                    Bắt đầu HĐ:{" "}
-                    <span className="text-foreground">{formatDate(lease.start_date)}</span>
-                  </div>
-                )}
-                {lease?.deposit ? (
-                  <div>
-                    Tiền cọc:{" "}
-                    <span className="text-foreground">{formatVNDExact(lease.deposit)}</span>
-                  </div>
-                ) : null}
+                {tenant.phone && <div>SĐT: <span className="text-foreground">{tenant.phone}</span></div>}
+                {tenant.email && <div>Email: <span className="text-foreground">{tenant.email}</span></div>}
+                {tenant.id_number && <div>CCCD: <span className="text-foreground">{tenant.id_number}</span></div>}
+                {tenant.move_in_date && <div>Ngày vào: <span className="text-foreground">{fmtDate(tenant.move_in_date)}</span></div>}
+                {lease && <div>Bắt đầu HĐ: <span className="text-foreground">{fmtDate(lease.start_date)}</span></div>}
+                {lease?.deposit ? <div>Tiền cọc: <span className="text-foreground">{formatVND(lease.deposit)}</span></div> : null}
               </div>
               {tenant.notes && (
-                <p className="text-xs text-muted-foreground border-t border-border pt-2 mt-2">
-                  {tenant.notes}
-                </p>
+                <p className="text-xs text-muted-foreground border-t border-border pt-2 mt-2">{tenant.notes}</p>
               )}
             </div>
           ) : (
@@ -1008,7 +870,7 @@ function RoomDetails({
                     {cm.electricity_start} → {cm.electricity_end}
                   </div>
                   <div className="font-medium">
-                    {kwhUsed} kWh · {formatVNDExact(eAmt)}
+                    {kwhUsed} kWh · {formatVND(eAmt)}
                   </div>
                 </div>
                 <div className="rounded-xl border border-border p-3">
@@ -1019,7 +881,7 @@ function RoomDetails({
                     {cm.water_start} → {cm.water_end}
                   </div>
                   <div className="font-medium">
-                    {m3Used} m³ · {formatVNDExact(wAmt)}
+                    {m3Used} m³ · {formatVND(wAmt)}
                   </div>
                 </div>
               </div>
@@ -1039,20 +901,10 @@ function RoomDetails({
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     <Field label="Chỉ số đầu">
-                      <TextInput
-                        type="number"
-                        inputMode="numeric"
-                        value={eStart}
-                        onChange={(e) => setEStart(e.target.value)}
-                      />
+                      <TextInput type="number" value={eStart} onChange={(e) => setEStart(e.target.value)} />
                     </Field>
                     <Field label="Chỉ số cuối">
-                      <TextInput
-                        type="number"
-                        inputMode="numeric"
-                        value={eEnd}
-                        onChange={(e) => setEEnd(e.target.value)}
-                      />
+                      <TextInput type="number" value={eEnd} onChange={(e) => setEEnd(e.target.value)} />
                     </Field>
                   </div>
                 </div>
@@ -1062,38 +914,19 @@ function RoomDetails({
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     <Field label="Chỉ số đầu">
-                      <TextInput
-                        type="number"
-                        inputMode="numeric"
-                        value={wStart}
-                        onChange={(e) => setWStart(e.target.value)}
-                      />
+                      <TextInput type="number" value={wStart} onChange={(e) => setWStart(e.target.value)} />
                     </Field>
                     <Field label="Chỉ số cuối">
-                      <TextInput
-                        type="number"
-                        inputMode="numeric"
-                        value={wEnd}
-                        onChange={(e) => setWEnd(e.target.value)}
-                      />
+                      <TextInput type="number" value={wEnd} onChange={(e) => setWEnd(e.target.value)} />
                     </Field>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <SecondaryButton
-                    type="button"
-                    onClick={() => setShowMeter(false)}
-                    className="flex-1"
-                  >
+                  <SecondaryButton type="button" onClick={() => setShowMeter(false)} className="flex-1">
                     Huỷ
                   </SecondaryButton>
-                  <PrimaryButton
-                    type="button"
-                    onClick={saveMeter}
-                    disabled={busy}
-                    className="flex-1"
-                  >
-                    {busy ? "Đang lưu..." : "Lưu chỉ số"}
+                  <PrimaryButton type="button" onClick={saveMeter} className="flex-1">
+                    Lưu chỉ số
                   </PrimaryButton>
                 </div>
               </div>
@@ -1101,18 +934,14 @@ function RoomDetails({
 
             {!showMeter && (
               <div className="flex flex-wrap gap-2">
-                <SecondaryButton
-                  type="button"
-                  onClick={() => setShowMeter(true)}
-                  className="flex-1 min-w-[140px]"
-                >
+                <SecondaryButton type="button" onClick={() => setShowMeter(true)} className="flex-1 min-w-[140px]">
                   <Gauge className="size-4" />
                   {cm ? "Cập nhật chỉ số" : "Ghi chỉ số"}
                 </SecondaryButton>
                 <PrimaryButton
                   type="button"
                   onClick={createInvoice}
-                  disabled={busy || !cm || !!row.currentInvoice}
+                  disabled={!cm || !!row.currentInvoice}
                   className="flex-1 min-w-[140px]"
                 >
                   <Receipt className="size-4" />
@@ -1128,13 +957,13 @@ function RoomDetails({
             <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-1 flex items-center gap-1.5">
               <Zap className="size-3" /> Giá điện
             </div>
-            <div className="text-sm font-medium">{formatVNDExact(row.electricity_rate)}/kWh</div>
+            <div className="text-sm font-medium">{formatVND(row.electricity_rate)}/kWh</div>
           </div>
           <div className="border border-border rounded-2xl p-3">
             <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-1 flex items-center gap-1.5">
               <Droplet className="size-3" /> Giá nước
             </div>
-            <div className="text-sm font-medium">{formatVNDExact(row.water_rate)}/m³</div>
+            <div className="text-sm font-medium">{formatVND(row.water_rate)}/m³</div>
           </div>
         </section>
 
@@ -1165,11 +994,11 @@ function RoomDetails({
                     <div className="font-medium">Kỳ {inv.period}</div>
                     <div className="text-[11px] text-muted-foreground">
                       {inv.status === "paid" ? "Đã thanh toán" : "Chưa thu"}
-                      {inv.due_date ? ` · Hạn ${formatDate(inv.due_date)}` : ""}
+                      {inv.due_date ? ` · Hạn ${fmtDate(inv.due_date)}` : ""}
                     </div>
                   </div>
                   <div className={`font-medium ${inv.status !== "paid" ? "text-destructive" : ""}`}>
-                    {formatVNDExact(inv.total_amount)}
+                    {formatVND(inv.total_amount)}
                   </div>
                 </li>
               ))}
@@ -1179,18 +1008,19 @@ function RoomDetails({
 
         {(row.address || row.area) && (
           <section className="text-xs text-muted-foreground">
-            {row.area && (
-              <div>
-                Khu vực: <span className="text-foreground">{row.area}</span>
-              </div>
-            )}
-            {row.address && (
-              <div>
-                Địa chỉ: <span className="text-foreground">{row.address}</span>
-              </div>
-            )}
+            {row.area && <div>Khu vực: <span className="text-foreground">{row.area}</span></div>}
+            {row.address && <div>Địa chỉ: <span className="text-foreground">{row.address}</span></div>}
           </section>
         )}
+
+        <div className="flex gap-3 pt-2 border-t border-border">
+          <SecondaryButton type="button" onClick={onClose} className="flex-1">
+            Đóng
+          </SecondaryButton>
+          <PrimaryButton type="button" onClick={onEdit} className="flex-1">
+            <Edit3 className="size-4" /> Chỉnh sửa
+          </PrimaryButton>
+        </div>
       </div>
     </Modal>
   );

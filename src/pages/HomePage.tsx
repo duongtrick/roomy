@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Nav, Footer } from "@/components/Nav";
 import { RoomCard } from "@/components/RoomCard";
@@ -7,27 +7,10 @@ import "leaflet/dist/leaflet.css";
 
 const LeafletMap = lazy(() => import("@/components/LeafletMap"));
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Roomy — Tìm phòng trọ tại Thái Nguyên" },
-      {
-        name: "description",
-        content:
-          "Roomy kết nối người thuê và chủ trọ tại Thái Nguyên. Tìm phòng theo khu vực, giá, diện tích, xem bản đồ và đặt lịch xem dễ dàng.",
-      },
-      { property: "og:title", content: "Roomy — Tìm phòng trọ tại Thái Nguyên" },
-      { property: "og:description", content: "Tìm phòng trọ lý tưởng tại Thái Nguyên." },
-    ],
-  }),
-  component: Home,
-});
-
-function Home() {
+export function HomePage() {
   const [area, setArea] = useState<string>(AREAS[0]);
   const [bandIdx, setBandIdx] = useState(0);
   const [activeId, setActiveId] = useState<string>(ROOMS[0]?.id ?? "");
-  // Leaflet touches `window` on import, so the map only mounts after hydration.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -89,7 +72,7 @@ function Home() {
               </div>
               <button
                 type="button"
-                className="bg-primary text-primary-foreground px-8 h-14 md:h-auto md:py-4 rounded-xl font-bold hover:brightness-110 active:scale-[0.98] transition-all"
+                className="bg-primary text-primary-foreground px-8 h-14 md:h-auto md:py-4 rounded-xl font-bold hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer"
               >
                 Tìm phòng ngay
               </button>

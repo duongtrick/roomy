@@ -1,25 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Nav, Footer } from "@/components/Nav";
 import { ROOMS } from "@/lib/rooms";
 import { formatVND } from "@/lib/format";
 
-export const Route = createFileRoute("/map")({
-  head: () => ({
-    meta: [
-      { title: "Bản đồ phòng trọ — Roomy.tn" },
-      { name: "description", content: "Xem vị trí các phòng trọ trên bản đồ Thái Nguyên." },
-    ],
-  }),
-  component: MapPage,
-});
-
 const LeafletMap = lazy(() => import("@/components/LeafletMap"));
 
-function MapPage() {
+export function MapPage() {
   const [activeId, setActiveId] = useState<string>(ROOMS[0]?.id ?? "");
   const active = ROOMS.find((r) => r.id === activeId) ?? ROOMS[0];
-  // Leaflet touches `window` on import, so the map only mounts after hydration.
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -64,8 +53,7 @@ function MapPage() {
             {active && (
               <>
                 <Link
-                  to="/room/$id"
-                  params={{ id: active.id }}
+                  to={`/room/${active.id}`}
                   className="block rounded-3xl overflow-hidden ring-1 ring-foreground/5 shadow-xl bg-card"
                 >
                   <img
@@ -99,7 +87,7 @@ function MapPage() {
                   key={r.id}
                   type="button"
                   onClick={() => setActiveId(r.id)}
-                  className={`w-full text-left p-4 min-h-14 rounded-2xl transition-colors active:scale-[0.99] ${
+                  className={`w-full text-left p-4 min-h-14 rounded-2xl transition-colors active:scale-[0.99] cursor-pointer ${
                     activeId === r.id
                       ? "bg-foreground text-background"
                       : "bg-card hover:bg-stone-100"

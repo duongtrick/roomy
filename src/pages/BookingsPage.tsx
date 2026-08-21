@@ -1,19 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { Calendar, Clock, MapPin, Trash2, X } from "lucide-react";
 import { Nav, Footer } from "@/components/Nav";
 import { useBookings, statusLabel, type BookingStatus } from "@/lib/bookings";
 import { formatDate } from "@/lib/format";
 import { getRoom } from "@/lib/rooms";
-
-export const Route = createFileRoute("/bookings")({
-  head: () => ({
-    meta: [
-      { title: "Lịch xem phòng của tôi — Roomy.tn" },
-      { name: "description", content: "Theo dõi trạng thái các lịch xem phòng đã đặt." },
-    ],
-  }),
-  component: BookingsPage,
-});
 
 const statusClass: Record<BookingStatus, string> = {
   pending: "bg-primary/10 text-primary",
@@ -21,7 +11,7 @@ const statusClass: Record<BookingStatus, string> = {
   cancelled: "bg-foreground/10 text-muted-foreground line-through",
 };
 
-function BookingsPage() {
+export function BookingsPage() {
   const { bookings, cancel, remove } = useBookings();
 
   return (
@@ -61,8 +51,7 @@ function BookingsPage() {
                 >
                   {room && (
                     <Link
-                      to="/room/$id"
-                      params={{ id: room.id }}
+                      to={`/room/${room.id}`}
                       className="w-full sm:w-40 shrink-0 rounded-2xl overflow-hidden bg-stone-200"
                     >
                       <img
@@ -76,8 +65,7 @@ function BookingsPage() {
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div>
                         <Link
-                          to="/room/$id"
-                          params={{ id: b.roomId }}
+                          to={`/room/${b.roomId}`}
                           className="font-serif italic font-bold text-xl hover:text-primary transition-colors"
                         >
                           {b.roomTitle}
@@ -121,7 +109,7 @@ function BookingsPage() {
                         <button
                           type="button"
                           onClick={() => cancel(b.id)}
-                          className="text-xs font-bold uppercase tracking-wider px-4 h-11 rounded-full border border-border hover:bg-foreground/5 active:scale-95 transition inline-flex items-center gap-1.5"
+                          className="text-xs font-bold uppercase tracking-wider px-4 h-11 rounded-full border border-border hover:bg-foreground/5 active:scale-95 transition inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <X className="size-3" /> Hủy lịch
                         </button>
@@ -129,7 +117,7 @@ function BookingsPage() {
                       <button
                         type="button"
                         onClick={() => remove(b.id)}
-                        className="text-xs font-bold uppercase tracking-wider px-4 h-11 rounded-full text-muted-foreground hover:text-destructive active:scale-95 transition inline-flex items-center gap-1.5"
+                        className="text-xs font-bold uppercase tracking-wider px-4 h-11 rounded-full text-muted-foreground hover:text-destructive active:scale-95 transition inline-flex items-center gap-1.5 cursor-pointer"
                       >
                         <Trash2 className="size-3" /> Xoá
                       </button>

@@ -1,20 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { Nav, Footer } from "@/components/Nav";
 import { RoomCard } from "@/components/RoomCard";
 import { ROOMS } from "@/lib/rooms";
 import { useFavorites } from "@/lib/favorites";
 
-export const Route = createFileRoute("/favorites")({
-  head: () => ({
-    meta: [
-      { title: "Phòng yêu thích — Roomy.tn" },
-      { name: "description", content: "Danh sách phòng trọ bạn đã lưu để so sánh và theo dõi." },
-    ],
-  }),
-  component: Favorites,
-});
-
-function Favorites() {
+export function FavoritesPage() {
   const { ids } = useFavorites();
   const rooms = ROOMS.filter((r) => ids.includes(r.id));
 
@@ -40,7 +30,7 @@ function Favorites() {
             <p className="font-serif italic text-2xl mb-4">Chưa có phòng nào được lưu.</p>
             <Link
               to="/"
-              className="inline-flex items-center justify-center bg-primary text-primary-foreground px-6 h-12 rounded-full font-bold active:scale-95 transition"
+              className="inline-flex items-center justify-center bg-primary text-primary-foreground px-6 h-12 rounded-full font-bold active:scale-95 transition cursor-pointer"
             >
               Khám phá phòng trọ
             </Link>

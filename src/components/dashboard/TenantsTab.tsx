@@ -1,85 +1,51 @@
-import { useState } from "react";
-import { getTenants, insertTenant, updateTenant, deleteTenant } from "@/lib/api/tenants.api";
+import { useEffect, useState } from "react";
+import { db } from "@/lib/mock-db";
 import { toast } from "sonner";
 import { Plus, Users, Trash2, Edit3, Phone, Mail } from "lucide-react";
 import type { Tenant } from "@/lib/dashboard-types";
-import { useOwnerData } from "@/hooks/use-owner-data";
-import { errorMessage } from "@/lib/errors";
-import { formatDate } from "@/lib/format";
-import {
-  EmptyState,
-  Field,
-  IconButton,
-  Modal,
-  PrimaryButton,
-  SecondaryButton,
-  TabHeader,
-  TextArea,
-  TextInput,
-} from "./ui";
-
-const EMPTY: Tenant[] = [];
-
-const fetchTenants = (ownerId: string) => getTenants({ data: { ownerId } });
+import { EmptyState, Field, Modal, PrimaryButton, SecondaryButton, TextArea, TextInput } from "./ui";
 
 export function TenantsTab({ ownerId }: { ownerId: string }) {
-  const { data: items, loading, reload } = useOwnerData(ownerId, fetchTenants, EMPTY);
+  const [items, setItems] = useState<Tenant[]>([]);
   const [editing, setEditing] = useState<Tenant | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  const openForm = (tenant: Tenant | null) => {
-    setEditing(tenant);
-    setShowForm(true);
+  const load = () => {
+    setItems(db.getTenants());
   };
 
-  const handleDelete = async (id: string) => {
+  useEffect(() => { load(); }, [ownerId]);
+
+  const handleDelete = (id: string) => {
     if (!confirm("Xoá người thuê này?")) return;
-    try {
-      const res = await deleteTenant({ data: { id, owner_id: ownerId } });
-      if (!res.ok) throw new Error("Không tìm thấy người thuê");
-      toast.success("Đã xoá");
-      void reload();
-    } catch (error) {
-      toast.error(errorMessage(error));
-    }
+    db.deleteTenant(id);
+    toast.success("Đã xoá");
+    load();
   };
 
   return (
     <div>
-      <TabHeader
-        title="Người thuê"
-        subtitle={`Tổng ${items.length} người`}
-        action={
-          <PrimaryButton onClick={() => openForm(null)} aria-label="Thêm người thuê">
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">Thêm người thuê</span>
-          </PrimaryButton>
-        }
-      />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-serif italic font-bold">Người thuê</h2>
+          <p className="text-sm text-muted-foreground mt-1">Tổng {items.length} người</p>
+        </div>
+        <PrimaryButton onClick={() => { setEditing(null); setShowForm(true); }}>
+          <Plus className="size-4" /> Thêm người thuê
+        </PrimaryButton>
+      </div>
 
       {showForm && (
-        <TenantForm
-          // Keyed so switching which tenant is edited re-seeds the form state.
-          key={editing?.id ?? "new"}
-          ownerId={ownerId}
-          initial={editing}
-          onClose={() => setShowForm(false)}
-          onSaved={() => {
-            setShowForm(false);
-            void reload();
-          }}
-        />
+        <TenantForm initial={editing} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load(); }} />
       )}
 
-      {loading ? (
-        <p className="text-muted-foreground">Đang tải...</p>
-      ) : items.length === 0 ? (
+      {items.length === 0 ? (
         <EmptyState
           icon={<Users className="size-12" />}
           title="Chưa có người thuê nào"
           description="Thêm thông tin người thuê để theo dõi và liên hệ dễ dàng."
           action={
-            <PrimaryButton onClick={() => openForm(null)}>
+            <PrimaryButton onClick={() => { setEditing(null); setShowForm(true); }}>
               <Plus className="size-4" /> Thêm người thuê
             </PrimaryButton>
           }
@@ -91,39 +57,21 @@ export function TenantsTab({ ownerId }: { ownerId: string }) {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-medium">{t.full_name}</h3>
-                  {t.id_number && (
-                    <p className="text-xs text-muted-foreground mt-0.5">CCCD: {t.id_number}</p>
-                  )}
+                  {t.id_number && <p className="text-xs text-muted-foreground mt-0.5">CCCD: {t.id_number}</p>}
                 </div>
                 <div className="flex">
-                  <IconButton onClick={() => openForm(t)} aria-label={`Sửa ${t.full_name}`}>
+                  <button onClick={() => { setEditing(t); setShowForm(true); }} className="text-muted-foreground hover:text-foreground p-1.5 rounded-full hover:bg-foreground/5 cursor-pointer">
                     <Edit3 className="size-4" />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => handleDelete(t.id)}
-                    aria-label={`Xoá ${t.full_name}`}
-                    className="hover:text-destructive hover:bg-destructive/10"
-                  >
+                  </button>
+                  <button onClick={() => handleDelete(t.id)} className="text-muted-foreground hover:text-destructive p-1.5 rounded-full hover:bg-destructive/10 cursor-pointer">
                     <Trash2 className="size-4" />
-                  </IconButton>
+                  </button>
                 </div>
               </div>
               <div className="space-y-1.5 text-sm">
-                {t.phone && (
-                  <p className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="size-3.5" /> {t.phone}
-                  </p>
-                )}
-                {t.email && (
-                  <p className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="size-3.5" /> {t.email}
-                  </p>
-                )}
-                {t.move_in_date && (
-                  <p className="text-xs text-muted-foreground">
-                    Chuyển vào: {formatDate(t.move_in_date)}
-                  </p>
-                )}
+                {t.phone && <p className="flex items-center gap-2 text-muted-foreground"><Phone className="size-3.5" /> {t.phone}</p>}
+                {t.email && <p className="flex items-center gap-2 text-muted-foreground"><Mail className="size-3.5" /> {t.email}</p>}
+                {t.move_in_date && <p className="text-xs text-muted-foreground">Chuyển vào: {t.move_in_date}</p>}
               </div>
             </article>
           ))}
@@ -133,111 +81,48 @@ export function TenantsTab({ ownerId }: { ownerId: string }) {
   );
 }
 
-function TenantForm({
-  ownerId,
-  initial,
-  onClose,
-  onSaved,
-}: {
-  ownerId: string;
-  initial: Tenant | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
+function TenantForm({ initial, onClose, onSaved }: { initial: Tenant | null; onClose: () => void; onSaved: () => void }) {
   const [fullName, setFullName] = useState(initial?.full_name ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
   const [idNumber, setIdNumber] = useState(initial?.id_number ?? "");
   const [moveInDate, setMoveInDate] = useState(initial?.move_in_date ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [busy, setBusy] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    try {
-      const payload = {
-        owner_id: ownerId,
-        full_name: fullName.trim(),
-        phone: phone.trim() || null,
-        email: email.trim() || null,
-        id_number: idNumber.trim() || null,
-        move_in_date: moveInDate || null,
-        notes: notes.trim() || null,
-      };
-      if (initial) {
-        const res = await updateTenant({ data: { ...payload, id: initial.id } });
-        if (!res.ok) throw new Error("Không tìm thấy người thuê");
-      } else {
-        await insertTenant({ data: payload });
-      }
-      toast.success(initial ? "Đã cập nhật" : "Đã thêm người thuê");
-      onSaved();
-    } catch (error) {
-      toast.error(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
+    db.saveTenant({
+      id: initial?.id,
+      full_name: fullName,
+      phone: phone || null,
+      email: email || null,
+      id_number: idNumber || null,
+      move_in_date: moveInDate || null,
+      notes: notes || null,
+    });
+    toast.success(initial ? "Đã cập nhật" : "Đã thêm người thuê");
+    onSaved();
   };
 
   return (
-    <Modal
-      title={initial ? "Chỉnh sửa người thuê" : "Thêm người thuê"}
-      onClose={onClose}
-      footer={
-        <div className="flex gap-3">
-          <SecondaryButton onClick={onClose} className="flex-1">
-            Huỷ
-          </SecondaryButton>
-          <PrimaryButton type="submit" form="tenant-form" disabled={busy} className="flex-1">
-            {busy ? "Đang lưu..." : "Lưu"}
-          </PrimaryButton>
-        </div>
-      }
-    >
-      <form id="tenant-form" onSubmit={submit} className="space-y-4">
+    <Modal title={initial ? "Chỉnh sửa người thuê" : "Thêm người thuê"} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
         <Field label="Họ tên">
-          <TextInput
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            autoFocus
-          />
+          <TextInput value={fullName} onChange={(e) => setFullName(e.target.value)} required />
         </Field>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Số điện thoại">
-            <TextInput
-              type="tel"
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </Field>
-          <Field label="Email">
-            <TextInput
-              type="email"
-              inputMode="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Số điện thoại"><TextInput value={phone ?? ""} onChange={(e) => setPhone(e.target.value)} /></Field>
+          <Field label="Email"><TextInput type="email" value={email ?? ""} onChange={(e) => setEmail(e.target.value)} /></Field>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="CCCD / CMND">
-            <TextInput value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
-          </Field>
-          <Field label="Ngày chuyển vào">
-            <TextInput
-              type="date"
-              value={moveInDate}
-              onChange={(e) => setMoveInDate(e.target.value)}
-            />
-          </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="CCCD / CMND"><TextInput value={idNumber ?? ""} onChange={(e) => setIdNumber(e.target.value)} /></Field>
+          <Field label="Ngày chuyển vào"><TextInput type="date" value={moveInDate ?? ""} onChange={(e) => setMoveInDate(e.target.value)} /></Field>
         </div>
-        <Field label="Ghi chú">
-          <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-        </Field>
+        <Field label="Ghi chú"><TextArea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} rows={3} /></Field>
+        <div className="flex gap-3 pt-2">
+          <SecondaryButton type="button" onClick={onClose} className="flex-1">Huỷ</SecondaryButton>
+          <PrimaryButton type="submit" className="flex-1">Lưu</PrimaryButton>
+        </div>
       </form>
     </Modal>
   );

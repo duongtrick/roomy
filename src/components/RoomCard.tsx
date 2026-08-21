@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { Heart } from "lucide-react";
 import type { Room } from "@/lib/rooms";
 import { formatVND } from "@/lib/format";
@@ -12,7 +12,7 @@ export function RoomCard({ room, delay = 0 }: { room: Room; delay?: number }) {
     <article className="group animate-fade-up" style={{ animationDelay: `${delay}ms` }}>
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
         <div className="w-full sm:w-56 md:w-72 shrink-0 overflow-hidden rounded-2xl relative bg-stone-200">
-          <Link to="/room/$id" params={{ id: room.id }} className="block">
+          <Link to={`/room/${room.id}`} className="block">
             <img
               src={room.image}
               alt={room.title}
@@ -44,7 +44,7 @@ export function RoomCard({ room, delay = 0 }: { room: Room; delay?: number }) {
               {room.size}m²
             </span>
           </div>
-          <Link to="/room/$id" params={{ id: room.id }} className="block py-1">
+          <Link to={`/room/${room.id}`} className="block py-1">
             <h3 className="text-xl sm:text-2xl font-serif italic font-bold mb-2 group-hover:text-primary transition-colors text-balance">
               {room.title}
             </h3>
@@ -58,8 +58,7 @@ export function RoomCard({ room, delay = 0 }: { room: Room; delay?: number }) {
               <span className="text-muted-foreground text-sm">/tháng</span>
             </div>
             <Link
-              to="/room/$id"
-              params={{ id: room.id }}
+              to={`/room/${room.id}`}
               className="text-sm font-bold border-b-2 border-primary pb-0.5 hover:text-primary transition-colors inline-flex items-center min-h-11"
             >
               Xem chi tiết

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import { Calendar, Check, Clock, X } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { useBookings, TIME_SLOTS, statusLabel, type Booking } from "@/lib/bookings";
 import { formatDate } from "@/lib/format";
 
@@ -184,7 +184,6 @@ export function BookingModal({ roomId, roomTitle, onClose }: Props) {
             border: 1px solid var(--color-border);
             background: var(--color-background);
             font-family: inherit;
-            /* 16px keeps iOS Safari from zooming the page on focus. */
             font-size: 1rem;
           }
           @media (pointer: fine) {
