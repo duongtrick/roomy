@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { getMeterReadings, upsertMeterReading } from "@/lib/api/meters.api";
+import { getListings } from "@/lib/api/listings.api";
 import { toast } from "sonner";
 import { Plus, Zap, Droplet } from "lucide-react";
 import { formatVND } from "@/lib/rooms";
@@ -15,11 +16,11 @@ export function MetersTab({ ownerId }: { ownerId: string }) {
   const load = async () => {
     setLoading(true);
     const [m, ls] = await Promise.all([
-      supabase.from("meter_readings").select("*").eq("owner_id", ownerId).order("period", { ascending: false }),
-      supabase.from("listings").select("*").eq("owner_id", ownerId),
+      getMeterReadings({ data: { ownerId } }),
+      getListings({ data: { ownerId } }),
     ]);
-    setItems((m.data ?? []) as unknown as MeterReading[]);
-    setListings((ls.data ?? []) as unknown as Listing[]);
+    setItems((m ?? []) as unknown as MeterReading[]);
+    setListings((ls ?? []) as unknown as Listing[]);
     setLoading(false);
   };
 
@@ -109,19 +110,25 @@ function MeterForm({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.from("meter_readings").upsert({
-      owner_id: ownerId,
-      listing_id: listingId,
-      period,
-      electricity_start: Number(eStart) || 0,
-      electricity_end: Number(eEnd) || 0,
-      water_start: Number(wStart) || 0,
-      water_end: Number(wEnd) || 0,
-    }, { onConflict: "listing_id,period" });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Đã lưu chỉ số");
-    onSaved();
+    try {
+      await upsertMeterReading({
+        data: {
+          owner_id: ownerId,
+          listing_id: listingId,
+          period,
+          electricity_start: Number(eStart) || 0,
+          electricity_end: Number(eEnd) || 0,
+          water_start: Number(wStart) || 0,
+          water_end: Number(wEnd) || 0,
+        },
+      });
+      toast.success("Đã lưu chỉ số");
+      onSaved();
+    } catch (err: any) {
+      toast.error(err.message ?? "Lỗi");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

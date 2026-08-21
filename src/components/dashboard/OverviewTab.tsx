@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { getListings } from "@/lib/api/listings.api";
+import { getTenants } from "@/lib/api/tenants.api";
+import { getLeases } from "@/lib/api/leases.api";
+import { getInvoices } from "@/lib/api/invoices.api";
 import { Home, Users, FileText, Receipt, TrendingUp } from "lucide-react";
 import { formatVND } from "@/lib/rooms";
 import type { Invoice, Lease, Listing, Tenant } from "@/lib/dashboard-types";
@@ -14,15 +17,15 @@ export function OverviewTab({ ownerId }: { ownerId: string }) {
   useEffect(() => {
     (async () => {
       const [ls, t, le, i] = await Promise.all([
-        supabase.from("listings").select("*").eq("owner_id", ownerId),
-        supabase.from("tenants").select("*").eq("owner_id", ownerId),
-        supabase.from("leases").select("*").eq("owner_id", ownerId),
-        supabase.from("invoices").select("*").eq("owner_id", ownerId),
+        getListings({ data: { ownerId } }),
+        getTenants({ data: { ownerId } }),
+        getLeases({ data: { ownerId } }),
+        getInvoices({ data: { ownerId } }),
       ]);
-      setListings((ls.data ?? []) as unknown as Listing[]);
-      setTenants((t.data ?? []) as unknown as Tenant[]);
-      setLeases((le.data ?? []) as unknown as Lease[]);
-      setInvoices((i.data ?? []) as unknown as Invoice[]);
+      setListings((ls ?? []) as unknown as Listing[]);
+      setTenants((t ?? []) as unknown as Tenant[]);
+      setLeases((le ?? []) as unknown as Lease[]);
+      setInvoices((i ?? []) as unknown as Invoice[]);
     })();
   }, [ownerId]);
 

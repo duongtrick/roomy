@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { getTenants, insertTenant, updateTenant, deleteTenant as deleteTenantFn } from "@/lib/api/tenants.api";
 import { toast } from "sonner";
 import { Plus, Users, Trash2, Edit3, Phone, Mail } from "lucide-react";
 import type { Tenant } from "@/lib/dashboard-types";
@@ -13,11 +13,7 @@ export function TenantsTab({ ownerId }: { ownerId: string }) {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("tenants")
-      .select("*")
-      .eq("owner_id", ownerId)
-      .order("created_at", { ascending: false });
+    const data = await getTenants({ data: { ownerId } });
     setItems((data ?? []) as unknown as Tenant[]);
     setLoading(false);
   };
@@ -26,10 +22,13 @@ export function TenantsTab({ ownerId }: { ownerId: string }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Xoá người thuê này?")) return;
-    const { error } = await supabase.from("tenants").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Đã xoá");
-    load();
+    try {
+      await deleteTenantFn({ data: { id } });
+      toast.success("Đã xoá");
+      load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Lỗi");
+    }
   };
 
   return (
@@ -104,22 +103,28 @@ function TenantForm({ ownerId, initial, onClose, onSaved }: { ownerId: string; i
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const payload = {
-      owner_id: ownerId,
-      full_name: fullName,
-      phone: phone || null,
-      email: email || null,
-      id_number: idNumber || null,
-      move_in_date: moveInDate || null,
-      notes: notes || null,
-    };
-    const { error } = initial
-      ? await supabase.from("tenants").update(payload).eq("id", initial.id)
-      : await supabase.from("tenants").insert(payload);
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(initial ? "Đã cập nhật" : "Đã thêm người thuê");
-    onSaved();
+    try {
+      const payload = {
+        owner_id: ownerId,
+        full_name: fullName,
+        phone: phone || null,
+        email: email || null,
+        id_number: idNumber || null,
+        move_in_date: moveInDate || null,
+        notes: notes || null,
+      };
+      if (initial) {
+        await updateTenant({ data: { ...payload, id: initial.id } });
+      } else {
+        await insertTenant({ data: payload });
+      }
+      toast.success(initial ? "Đã cập nhật" : "Đã thêm người thuê");
+      onSaved();
+    } catch (e: any) {
+      toast.error(e.message ?? "Lỗi");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getListings,
+  insertListing,
+  updateListing,
+  deleteListing,
+  updateListingStatus,
+} from "@/lib/api/listings.api";
+import { getLeases, insertLease, updateLeaseStatus } from "@/lib/api/leases.api";
+import { getTenants } from "@/lib/api/tenants.api";
+import { getInvoices, insertInvoice } from "@/lib/api/invoices.api";
+import { getMeterReadings, upsertMeterReading } from "@/lib/api/meters.api";
 import { toast } from "sonner";
 import {
   Plus,
@@ -76,19 +86,24 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
 
   const load = async () => {
     setLoading(true);
-    const [ls, le, tn, inv, mt] = await Promise.all([
-      supabase.from("listings").select("*").eq("owner_id", ownerId).order("title"),
-      supabase.from("leases").select("*").eq("owner_id", ownerId),
-      supabase.from("tenants").select("*").eq("owner_id", ownerId),
-      supabase.from("invoices").select("*").eq("owner_id", ownerId),
-      supabase.from("meter_readings").select("*").eq("owner_id", ownerId).order("period", { ascending: false }),
-    ]);
-    setItems((ls.data ?? []) as unknown as Listing[]);
-    setLeases((le.data ?? []) as unknown as Lease[]);
-    setTenants((tn.data ?? []) as unknown as Tenant[]);
-    setInvoices((inv.data ?? []) as unknown as Invoice[]);
-    setMeters((mt.data ?? []) as unknown as MeterReading[]);
-    setLoading(false);
+    try {
+      const [ls, le, tn, inv, mt] = await Promise.all([
+        getListings({ data: { ownerId } }),
+        getLeases({ data: { ownerId } }),
+        getTenants({ data: { ownerId } }),
+        getInvoices({ data: { ownerId } }),
+        getMeterReadings({ data: { ownerId } }),
+      ]);
+      setItems((ls ?? []) as unknown as Listing[]);
+      setLeases((le ?? []) as unknown as Lease[]);
+      setTenants((tn ?? []) as unknown as Tenant[]);
+      setInvoices((inv ?? []) as unknown as Invoice[]);
+      setMeters((mt ?? []) as unknown as MeterReading[]);
+    } catch (e: any) {
+      toast.error(e.message ?? "Lỗi tải dữ liệu");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -142,19 +157,13 @@ export function RoomsTab({ ownerId }: { ownerId: string }) {
   const handleDelete = async (id: string) => {
     if (!confirm("Xoá phòng này? Các hợp đồng, hoá đơn và chỉ số liên quan cũng sẽ bị xoá."))
       return;
-    const { error } = await supabase.from("listings").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Đã xoá phòng");
-    load();
-  };
-
-  const quickSetStatus = async (id: string, status: RoomStatus, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setOpenMenu(null);
-    const { error } = await supabase.from("listings").update({ status }).eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success(`Đã chuyển: ${ROOM_STATUS_LABEL[status]}`);
-    load();
+    try {
+      await deleteListing({ data: { id } });
+      toast.success("Đã xoá phòng");
+      load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Lỗi");
+    }
   };
 
   const detailsRow = detailsId ? rows.find((r) => r.id === detailsId) ?? null : null;
@@ -535,58 +544,60 @@ function RoomForm({
       return;
     }
     setBusy(true);
-    const payload = {
-      owner_id: ownerId,
-      title: title.trim(),
-      description: description || null,
-      price: Number(price),
-      size: size ? Number(size) : null,
-      address: address || null,
-      area: area || null,
-      image_url: imageUrl || null,
-      status,
-      electricity_rate: Number(electricityRate) || 0,
-      water_rate: Number(waterRate) || 0,
-    };
-    const { data: saved, error } = initial
-      ? await supabase.from("listings").update(payload).eq("id", initial.id).select().single()
-      : await supabase.from("listings").insert(payload).select().single();
-    if (error) {
-      setBusy(false);
-      return toast.error(error.message);
-    }
+    try {
+      const payload = {
+        owner_id: ownerId,
+        title: title.trim(),
+        description: description || null,
+        price: Number(price),
+        size: size ? Number(size) : null,
+        address: address || null,
+        area: area || null,
+        image_url: imageUrl || null,
+        status,
+        electricity_rate: Number(electricityRate) || 0,
+        water_rate: Number(waterRate) || 0,
+      };
+      const saved: any = initial
+        ? await updateListing({ data: { ...payload, id: initial.id } })
+        : await insertListing({ data: payload });
 
-    // Sync active lease with tenant assignment
-    const listingId = (saved as { id: string } | null)?.id ?? initial?.id;
-    if (listingId) {
-      if (status === "occupied" && tenantId) {
-        if (activeLease && activeLease.tenant_id === tenantId) {
-          // no change
-        } else {
-          if (activeLease) {
-            await supabase.from("leases").update({ status: "ended" }).eq("id", activeLease.id);
+      // Sync active lease with tenant assignment
+      const listingId = saved?.id ?? initial?.id;
+      if (listingId) {
+        if (status === "occupied" && tenantId) {
+          if (activeLease && activeLease.tenant_id === tenantId) {
+            // no change
+          } else {
+            if (activeLease) {
+              await updateLeaseStatus({ data: { id: activeLease.id, status: "ended" } });
+            }
+            const today = new Date().toISOString().slice(0, 10);
+            await insertLease({
+              data: {
+                owner_id: ownerId,
+                listing_id: listingId,
+                tenant_id: tenantId,
+                start_date: today,
+                monthly_rent: Number(price) || 0,
+                deposit: 0,
+                status: "active",
+              },
+            });
           }
-          const today = new Date().toISOString().slice(0, 10);
-          await supabase.from("leases").insert({
-            owner_id: ownerId,
-            listing_id: listingId,
-            tenant_id: tenantId,
-            start_date: today,
-            monthly_rent: Number(price) || 0,
-            deposit: 0,
-            status: "active",
-          });
+        } else if (status !== "occupied" && activeLease) {
+          await updateLeaseStatus({ data: { id: activeLease.id, status: "ended" } });
         }
-      } else if (status !== "occupied" && activeLease) {
-        await supabase.from("leases").update({ status: "ended" }).eq("id", activeLease.id);
       }
+
+      toast.success(initial ? "Đã cập nhật phòng" : "Đã thêm phòng");
+      onSaved();
+    } catch (err: any) {
+      toast.error(err.message ?? "Lỗi khi lưu phòng");
+    } finally {
+      setBusy(false);
     }
-
-    setBusy(false);
-    toast.success(initial ? "Đã cập nhật phòng" : "Đã thêm phòng");
-    onSaved();
   };
-
 
   return (
     <Modal title={initial ? "Chỉnh sửa phòng" : "Thêm phòng mới"} onClose={onClose}>
@@ -790,23 +801,26 @@ function RoomDetails({
 
   const saveMeter = async () => {
     setBusy(true);
-    const { error } = await supabase.from("meter_readings").upsert(
-      {
-        owner_id: ownerId,
-        listing_id: row.id,
-        period,
-        electricity_start: Number(eStart) || 0,
-        electricity_end: Number(eEnd) || 0,
-        water_start: Number(wStart) || 0,
-        water_end: Number(wEnd) || 0,
-      },
-      { onConflict: "listing_id,period" },
-    );
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(`Đã lưu chỉ số kỳ ${period}`);
-    setShowMeter(false);
-    onChanged();
+    try {
+      await upsertMeterReading({
+        data: {
+          owner_id: ownerId,
+          listing_id: row.id,
+          period,
+          electricity_start: Number(eStart) || 0,
+          electricity_end: Number(eEnd) || 0,
+          water_start: Number(wStart) || 0,
+          water_end: Number(wEnd) || 0,
+        },
+      });
+      toast.success(`Đã lưu chỉ số kỳ ${period}`);
+      setShowMeter(false);
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message ?? "Lỗi khi lưu chỉ số");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const createInvoice = async () => {
@@ -819,25 +833,31 @@ function RoomDetails({
     const rent = row.leaseRent ?? row.price;
     const total = rent + eAmt + wAmt;
     setBusy(true);
-    const { error } = await supabase.from("invoices").insert({
-      owner_id: ownerId,
-      lease_id: lease?.id ?? null,
-      listing_id: row.id,
-      tenant_id: tenant?.id ?? null,
-      period,
-      rent_amount: rent,
-      electricity_kwh: kwh,
-      electricity_amount: eAmt,
-      water_m3: m3,
-      water_amount: wAmt,
-      other_amount: 0,
-      total_amount: total,
-      status: "unpaid",
-    });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(`Đã tạo hoá đơn kỳ ${period} · ${formatVND(total)}`);
-    onChanged();
+    try {
+      await insertInvoice({
+        data: {
+          owner_id: ownerId,
+          lease_id: lease?.id ?? null,
+          listing_id: row.id,
+          tenant_id: tenant?.id ?? null,
+          period,
+          rent_amount: rent,
+          electricity_kwh: kwh,
+          electricity_amount: eAmt,
+          water_m3: m3,
+          water_amount: wAmt,
+          other_amount: 0,
+          total_amount: total,
+          status: "unpaid",
+        },
+      });
+      toast.success(`Đã tạo hoá đơn kỳ ${period} · ${formatVND(total)}`);
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message ?? "Lỗi khi tạo hoá đơn");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const status = (STATUS_ORDER.includes(row.status as RoomStatus)
@@ -1090,6 +1110,3 @@ function RoomDetails({
     </Modal>
   );
 }
-
-// Silence unused import for MoreHorizontal (kept for future per-row menu)
-

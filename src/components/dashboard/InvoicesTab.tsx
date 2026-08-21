@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { getInvoices, insertInvoice, updateInvoiceStatus, deleteInvoice as deleteInvoiceFn } from "@/lib/api/invoices.api";
+import { getListings } from "@/lib/api/listings.api";
+import { getTenants } from "@/lib/api/tenants.api";
+import { getLeases } from "@/lib/api/leases.api";
+import { getMeterReadings } from "@/lib/api/meters.api";
 import { toast } from "sonner";
 import { Plus, Receipt, Trash2, Check } from "lucide-react";
 import { formatVND } from "@/lib/rooms";
@@ -25,17 +29,17 @@ export function InvoicesTab({ ownerId }: { ownerId: string }) {
   const load = async () => {
     setLoading(true);
     const [i, ls, t, le, m] = await Promise.all([
-      supabase.from("invoices").select("*").eq("owner_id", ownerId).order("period", { ascending: false }),
-      supabase.from("listings").select("*").eq("owner_id", ownerId),
-      supabase.from("tenants").select("*").eq("owner_id", ownerId),
-      supabase.from("leases").select("*").eq("owner_id", ownerId),
-      supabase.from("meter_readings").select("*").eq("owner_id", ownerId),
+      getInvoices({ data: { ownerId } }),
+      getListings({ data: { ownerId } }),
+      getTenants({ data: { ownerId } }),
+      getLeases({ data: { ownerId } }),
+      getMeterReadings({ data: { ownerId } }),
     ]);
-    setItems((i.data ?? []) as unknown as Invoice[]);
-    setListings((ls.data ?? []) as unknown as Listing[]);
-    setTenants((t.data ?? []) as unknown as Tenant[]);
-    setLeases((le.data ?? []) as unknown as Lease[]);
-    setReadings((m.data ?? []) as unknown as MeterReading[]);
+    setItems((i ?? []) as unknown as Invoice[]);
+    setListings((ls ?? []) as unknown as Listing[]);
+    setTenants((t ?? []) as unknown as Tenant[]);
+    setLeases((le ?? []) as unknown as Lease[]);
+    setReadings((m ?? []) as unknown as MeterReading[]);
     setLoading(false);
   };
 
@@ -43,20 +47,29 @@ export function InvoicesTab({ ownerId }: { ownerId: string }) {
 
   const markPaid = async (inv: Invoice) => {
     const paid = inv.status === "paid";
-    const { error } = await supabase.from("invoices").update({
-      status: paid ? "unpaid" : "paid",
-      paid_at: paid ? null : new Date().toISOString(),
-    }).eq("id", inv.id);
-    if (error) return toast.error(error.message);
-    load();
+    try {
+      await updateInvoiceStatus({
+        data: {
+          id: inv.id,
+          status: paid ? "unpaid" : "paid",
+          paid_at: paid ? null : new Date().toISOString(),
+        },
+      });
+      load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Lỗi");
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Xoá hoá đơn này?")) return;
-    const { error } = await supabase.from("invoices").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Đã xoá");
-    load();
+    try {
+      await deleteInvoiceFn({ data: { id } });
+      toast.success("Đã xoá");
+      load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Lỗi");
+    }
   };
 
   const room = (id: string) => listings.find((x) => x.id === id);
@@ -190,26 +203,32 @@ function InvoiceForm({
     e.preventDefault();
     if (!lease || !listing) return;
     setBusy(true);
-    const { error } = await supabase.from("invoices").insert({
-      owner_id: ownerId,
-      lease_id: lease.id,
-      listing_id: lease.listing_id,
-      tenant_id: lease.tenant_id,
-      period,
-      rent_amount: rentAmt,
-      electricity_kwh: kwh,
-      electricity_amount: eAmt,
-      water_m3: m3,
-      water_amount: wAmt,
-      other_amount: Number(otherAmount) || 0,
-      total_amount: total,
-      due_date: dueDate || null,
-      notes: notes || null,
-    });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Đã tạo hoá đơn");
-    onSaved();
+    try {
+      await insertInvoice({
+        data: {
+          owner_id: ownerId,
+          lease_id: lease.id,
+          listing_id: lease.listing_id,
+          tenant_id: lease.tenant_id,
+          period,
+          rent_amount: rentAmt,
+          electricity_kwh: kwh,
+          electricity_amount: eAmt,
+          water_m3: m3,
+          water_amount: wAmt,
+          other_amount: Number(otherAmount) || 0,
+          total_amount: total,
+          due_date: dueDate || null,
+          notes: notes || null,
+        },
+      });
+      toast.success("Đã tạo hoá đơn");
+      onSaved();
+    } catch (err: any) {
+      toast.error(err.message ?? "Lỗi");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

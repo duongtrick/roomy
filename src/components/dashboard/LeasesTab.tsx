@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { getLeases, insertLease, updateLeaseStatus, deleteLease as deleteLeaseFn } from "@/lib/api/leases.api";
+import { getListings, updateListingStatus } from "@/lib/api/listings.api";
+import { getTenants } from "@/lib/api/tenants.api";
 import { toast } from "sonner";
 import { Plus, FileText, Trash2 } from "lucide-react";
 import { formatVND } from "@/lib/rooms";
@@ -16,13 +18,13 @@ export function LeasesTab({ ownerId }: { ownerId: string }) {
   const load = async () => {
     setLoading(true);
     const [l, ls, t] = await Promise.all([
-      supabase.from("leases").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }),
-      supabase.from("listings").select("*").eq("owner_id", ownerId),
-      supabase.from("tenants").select("*").eq("owner_id", ownerId),
+      getLeases({ data: { ownerId } }),
+      getListings({ data: { ownerId } }),
+      getTenants({ data: { ownerId } }),
     ]);
-    setLeases((l.data ?? []) as unknown as Lease[]);
-    setListings((ls.data ?? []) as unknown as Listing[]);
-    setTenants((t.data ?? []) as unknown as Tenant[]);
+    setLeases((l ?? []) as unknown as Lease[]);
+    setListings((ls ?? []) as unknown as Listing[]);
+    setTenants((t ?? []) as unknown as Tenant[]);
     setLoading(false);
   };
 
@@ -30,17 +32,19 @@ export function LeasesTab({ ownerId }: { ownerId: string }) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Xoá hợp đồng này?")) return;
-    const { error } = await supabase.from("leases").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Đã xoá");
-    load();
+    try {
+      await deleteLeaseFn({ data: { id } });
+      toast.success("Đã xoá");
+      load();
+    } catch (e: any) { toast.error(e.message ?? "Lỗi"); }
   };
 
   const toggleStatus = async (lease: Lease) => {
     const next = lease.status === "active" ? "ended" : "active";
-    const { error } = await supabase.from("leases").update({ status: next }).eq("id", lease.id);
-    if (error) return toast.error(error.message);
-    load();
+    try {
+      await updateLeaseStatus({ data: { id: lease.id, status: next } });
+      load();
+    } catch (e: any) { toast.error(e.message ?? "Lỗi"); }
   };
 
   const roomTitle = (id: string) => listings.find((x) => x.id === id)?.title ?? "—";
@@ -53,22 +57,13 @@ export function LeasesTab({ ownerId }: { ownerId: string }) {
           <h2 className="text-2xl font-serif italic font-bold">Hợp đồng thuê</h2>
           <p className="text-sm text-muted-foreground mt-1">Tổng {leases.length} hợp đồng</p>
         </div>
-        <PrimaryButton
-          onClick={() => setShowForm(true)}
-          disabled={listings.length === 0 || tenants.length === 0}
-        >
+        <PrimaryButton onClick={() => setShowForm(true)} disabled={listings.length === 0 || tenants.length === 0}>
           <Plus className="size-4" /> Thêm hợp đồng
         </PrimaryButton>
       </div>
 
       {showForm && (
-        <LeaseForm
-          ownerId={ownerId}
-          listings={listings}
-          tenants={tenants}
-          onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); load(); }}
-        />
+        <LeaseForm ownerId={ownerId} listings={listings} tenants={tenants} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load(); }} />
       )}
 
       {loading ? (
@@ -106,14 +101,8 @@ export function LeasesTab({ ownerId }: { ownerId: string }) {
                   <td className="px-4 py-3 text-right font-medium">{formatVND(l.monthly_rent)}</td>
                   <td className="px-4 py-3 text-right">{formatVND(l.deposit)}</td>
                   <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => toggleStatus(l)}
-                      className={`text-xs px-2.5 py-1 rounded-full border ${
-                        l.status === "active"
-                          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                          : "bg-stone-100 text-stone-600 border-stone-200"
-                      }`}
-                    >
+                    <button onClick={() => toggleStatus(l)}
+                      className={`text-xs px-2.5 py-1 rounded-full border ${l.status === "active" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-stone-100 text-stone-600 border-stone-200"}`}>
                       {l.status === "active" ? "Hiệu lực" : "Kết thúc"}
                     </button>
                   </td>
@@ -132,9 +121,7 @@ export function LeasesTab({ ownerId }: { ownerId: string }) {
   );
 }
 
-function LeaseForm({
-  ownerId, listings, tenants, onClose, onSaved,
-}: { ownerId: string; listings: Listing[]; tenants: Tenant[]; onClose: () => void; onSaved: () => void }) {
+function LeaseForm({ ownerId, listings, tenants, onClose, onSaved }: { ownerId: string; listings: Listing[]; tenants: Tenant[]; onClose: () => void; onSaved: () => void }) {
   const [listingId, setListingId] = useState(listings[0]?.id ?? "");
   const [tenantId, setTenantId] = useState(tenants[0]?.id ?? "");
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
@@ -147,34 +134,24 @@ function LeaseForm({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.from("leases").insert({
-      owner_id: ownerId,
-      listing_id: listingId,
-      tenant_id: tenantId,
-      start_date: startDate,
-      end_date: endDate || null,
-      monthly_rent: Number(rent),
-      deposit: Number(deposit) || 0,
-      notes: notes || null,
-    });
-    if (!error) {
-      await supabase.from("listings").update({ status: "occupied" }).eq("id", listingId);
-    }
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Đã tạo hợp đồng");
-    onSaved();
+    try {
+      await insertLease({ data: {
+        owner_id: ownerId, listing_id: listingId, tenant_id: tenantId,
+        start_date: startDate, end_date: endDate || null,
+        monthly_rent: Number(rent), deposit: Number(deposit) || 0, notes: notes || null,
+      }});
+      await updateListingStatus({ data: { id: listingId, status: "occupied" } });
+      toast.success("Đã tạo hợp đồng");
+      onSaved();
+    } catch (e: any) { toast.error(e.message ?? "Lỗi"); }
+    finally { setBusy(false); }
   };
 
   return (
     <Modal title="Thêm hợp đồng" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <Field label="Phòng">
-          <select value={listingId} onChange={(e) => {
-            setListingId(e.target.value);
-            const p = listings.find((x) => x.id === e.target.value)?.price;
-            if (p) setRent(String(p));
-          }} className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm">
+          <select value={listingId} onChange={(e) => { setListingId(e.target.value); const p = listings.find((x) => x.id === e.target.value)?.price; if (p) setRent(String(p)); }} className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm">
             {listings.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
           </select>
         </Field>
