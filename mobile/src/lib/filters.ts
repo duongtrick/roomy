@@ -1,4 +1,5 @@
 import type { Room } from "./api/catalogue";
+import { foldVietnamese } from "./roomy-query";
 
 /** Filter options for the home feed. Static — not derived from the data. */
 export const ANY_AREA = "Toàn thành phố";
@@ -40,22 +41,6 @@ export const SORT_OPTIONS: { label: string; value: SortKey }[] = [
  * và một hàm tìm kiếm im lặng trả về sai kết quả trên một nền tảng là loại
  * lỗi khó thấy nhất.
  */
-const MARKS: [RegExp, string][] = [
-  [/[àáạảãâầấậẩẫăằắặẳẵ]/g, "a"],
-  [/[èéẹẻẽêềếệểễ]/g, "e"],
-  [/[ìíịỉĩ]/g, "i"],
-  [/[òóọỏõôồốộổỗơờớợởỡ]/g, "o"],
-  [/[ùúụủũưừứựửữ]/g, "u"],
-  [/[ỳýỵỷỹ]/g, "y"],
-  [/đ/g, "d"],
-];
-
-function fold(s: string): string {
-  let out = s.toLowerCase();
-  for (const [re, ch] of MARKS) out = out.replace(re, ch);
-  return out;
-}
-
 /**
  * Tìm kiếm theo từ khoá trên toàn bộ phần chữ của tin đăng.
  *
@@ -64,9 +49,9 @@ function fold(s: string): string {
  * vòng mạng là chậm không cần thiết.
  */
 export function matchesQuery(room: Room, query: string): boolean {
-  const q = fold(query.trim());
+  const q = foldVietnamese(query.trim());
   if (!q) return true;
-  const haystack = fold(
+  const haystack = foldVietnamese(
     [room.title, room.area, room.district, room.address, room.school, ...room.amenities].join(" "),
   );
   return q.split(/\s+/).every((word) => haystack.includes(word));

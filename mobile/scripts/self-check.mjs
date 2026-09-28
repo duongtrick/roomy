@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -21,5 +22,20 @@ assert.equal(pickRole([{ role: "tenant" }]), "tenant");
 assert.equal(pickRole([{ role: "landlord" }, { role: "tenant" }]), "landlord");
 assert.equal(pickRole([{ role: "tenant" }, { role: "admin" }]), "admin");
 assert.equal(pickRole([{ role: "landlord" }, { role: "admin" }]), "admin");
+
+assert.deepEqual(parseRoomyQuery("phòng dưới 2 triệu gần ICTU còn trống"), {
+  keyword: "ictu",
+  maxPrice: 2_000_000,
+  maxDistance: null,
+  availableOnly: true,
+  verifiedOnly: false,
+});
+assert.deepEqual(parseRoomyQuery("trọ xác thực dưới 1,5tr gần 500m"), {
+  keyword: "",
+  maxPrice: 1_500_000,
+  maxDistance: 500,
+  availableOnly: false,
+  verifiedOnly: true,
+});
 
 console.log("self-check passed");

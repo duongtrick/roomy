@@ -34,6 +34,7 @@ import {
   type SortKey,
 } from "@/lib/filters";
 import { formatDistance, formatVND } from "@/lib/format";
+import { parseRoomyQuery, type RoomyQueryIntent } from "@/lib/roomy-query";
 import { suggestRooms } from "@/lib/suggest";
 import { useAsync } from "@/hooks/use-async";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,6 +50,8 @@ export default function HomeScreen() {
   const { data: rooms, loading, error, reload } = useAsync(getRooms, NO_ROOMS);
 
   const [query, setQuery] = useState("");
+  const [ask, setAsk] = useState("");
+  const [intent, setIntent] = useState<RoomyQueryIntent | null>(null);
   const [area, setArea] = useState<string>(ANY_AREA);
   const [bandIdx, setBandIdx] = useState(0);
   const [distanceIdx, setDistanceIdx] = useState(0);
@@ -73,14 +76,20 @@ export default function HomeScreen() {
       if (bandIdx === 1 && r.price >= band.max) return false;
       if (bandIdx === 2 && (r.price < band.min || r.price > band.max)) return false;
       if (bandIdx === 3 && r.price <= band.min) return false;
+      if (intent?.maxPrice != null && r.price > intent.maxPrice) return false;
       // Chưa khai khoảng cách thì không lọt qua bất kỳ mốc hẹp nào.
       if (maxDistance !== Infinity && (r.distanceToSchool ?? Infinity) >= maxDistance) return false;
+      if (intent?.maxDistance != null && (r.distanceToSchool ?? Infinity) > intent.maxDistance) {
+        return false;
+      }
       if (verifiedOnly && r.verification !== "verified") return false;
+      if (intent?.verifiedOnly && r.verification !== "verified") return false;
       if (availableOnly && r.status !== "available") return false;
-      return matchesQuery(r, query);
+      if (intent?.availableOnly && r.status !== "available") return false;
+      return matchesQuery(r, intent?.keyword || query);
     });
     return sortRooms(matches, sort);
-  }, [rooms, area, bandIdx, distanceIdx, verifiedOnly, availableOnly, query, sort]);
+  }, [rooms, area, bandIdx, distanceIdx, verifiedOnly, availableOnly, query, intent, sort]);
 
   const suggestions = useMemo(() => suggestRooms(filtered, favouriteIds), [filtered, favouriteIds]);
 
@@ -90,16 +99,25 @@ export default function HomeScreen() {
     (distanceIdx !== 0 ? 1 : 0) +
     (verifiedOnly ? 1 : 0) +
     (availableOnly ? 1 : 0) +
+    (intent ? 1 : 0) +
     (query.trim() ? 1 : 0);
 
   const resetFilters = () => {
     setQuery("");
+    setAsk("");
+    setIntent(null);
     setArea(ANY_AREA);
     setBandIdx(0);
     setDistanceIdx(0);
     setVerifiedOnly(false);
     setAvailableOnly(false);
     setSort("newest");
+  };
+
+  const applyRoomyQuery = () => {
+    const next = parseRoomyQuery(ask);
+    setIntent(next);
+    setQuery(next.keyword);
   };
 
   return (
@@ -134,11 +152,48 @@ export default function HomeScreen() {
             </Display>
 
             <Card style={[styles.searchCard, shadow.card]}>
+              <View style={styles.askBox}>
+                <View style={styles.searchWrap}>
+                  <Sparkles size={16} color={colors.primary} style={styles.searchIcon} />
+                  <TextInput
+                    value={ask}
+                    onChangeText={setAsk}
+                    placeholder="Hỏi Roomy: phòng dưới 2 triệu gần ICTU còn trống"
+                    style={{ paddingLeft: 42 }}
+                    returnKeyType="search"
+                    onSubmitEditing={applyRoomyQuery}
+                  />
+                </View>
+                <AccentButton
+                  label="Hỏi Roomy"
+                  icon={<Sparkles size={16} color={colors.primaryForeground} />}
+                  disabled={!ask.trim()}
+                  onPress={applyRoomyQuery}
+                />
+              </View>
+
+              {intent ? (
+                <View style={styles.intentRow}>
+                  {intent.maxPrice != null ? (
+                    <IntentChip label={`Dưới ${formatVND(intent.maxPrice)}`} />
+                  ) : null}
+                  {intent.maxDistance != null ? (
+                    <IntentChip label={`Gần ${formatDistance(intent.maxDistance)}`} />
+                  ) : null}
+                  {intent.availableOnly ? <IntentChip label="Còn trống" /> : null}
+                  {intent.verifiedOnly ? <IntentChip label="Đã xác thực" /> : null}
+                  {intent.keyword ? <IntentChip label={intent.keyword} /> : null}
+                </View>
+              ) : null}
+
               <View style={styles.searchWrap}>
                 <Search size={16} color={colors.mutedForeground} style={styles.searchIcon} />
                 <TextInput
                   value={query}
-                  onChangeText={setQuery}
+                  onChangeText={(value) => {
+                    setQuery(value);
+                    setIntent(null);
+                  }}
                   placeholder="Tìm theo tên phòng, khu vực, tiện ích…"
                   style={{ paddingLeft: 42, paddingRight: query ? 42 : 14 }}
                   returnKeyType="search"
@@ -304,6 +359,14 @@ export default function HomeScreen() {
   );
 }
 
+function IntentChip({ label }: { label: string }) {
+  return (
+    <View style={styles.intentChip}>
+      <Text style={styles.intentLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function FilterChip({
   label,
   icon,
@@ -368,6 +431,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   list: { padding: 16, paddingBottom: 40 },
   searchCard: { gap: 14, borderRadius: radius["2xl"] },
+  askBox: { gap: 10 },
   pair: { flexDirection: "row", gap: 12 },
 
   searchWrap: { justifyContent: "center" },
@@ -391,6 +455,14 @@ const styles = StyleSheet.create({
   chipLabelOn: { color: colors.primaryForeground, fontFamily: font.semibold },
   resetChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6 },
   resetLabel: { fontFamily: font.medium, fontSize: 12, color: colors.mutedForeground },
+  intentRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  intentChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+  },
+  intentLabel: { fontFamily: font.semibold, fontSize: 11, color: colors.primaryDeep },
 
   suggestHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   suggestCard: {
