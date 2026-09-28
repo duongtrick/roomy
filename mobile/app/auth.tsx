@@ -28,6 +28,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
   // `onAuthStateChange` lands after the request resolves, so leaving is driven
@@ -36,7 +37,32 @@ export default function AuthScreen() {
     if (user) router.back();
   }, [user]);
 
+  const set = (field: "email" | "password" | "fullName" | "phone", value: string) => {
+    if (field === "email") setEmail(value);
+    if (field === "password") setPassword(value);
+    if (field === "fullName") setFullName(value);
+    if (field === "phone") setPhone(value);
+    if (errors[field]) setErrors((e) => ({ ...e, [field]: "" }));
+  };
+
+  const validate = () => {
+    const next: Record<string, string> = {};
+    const cleanEmail = email.trim();
+    if (!cleanEmail) next.email = "Vui lòng nhập email.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) next.email = "Email không hợp lệ.";
+    if (password.length < 6) next.password = "Mật khẩu tối thiểu 6 ký tự.";
+    if (mode === "signup" && fullName.trim().length < 2) {
+      next.fullName = "Vui lòng nhập họ tên.";
+    }
+    if (phone.trim() && !/^(0|\+84)\d{9,10}$/.test(phone.replace(/\s+/g, ""))) {
+      next.phone = "Số điện thoại không hợp lệ.";
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
   const submit = async () => {
+    if (!validate()) return;
     setSubmitting(true);
     try {
       if (mode === "signup") {
@@ -136,21 +162,21 @@ export default function AuthScreen() {
               </View>
             </Field>
 
-            <Field label="Họ và tên">
+            <Field label="Họ và tên" error={errors.fullName}>
               <IconInput
                 icon={<UserRound size={16} color={colors.mutedForeground} />}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(v) => set("fullName", v)}
                 placeholder="Nguyễn Văn A"
                 autoComplete="name"
               />
             </Field>
 
-            <Field label="Số điện thoại">
+            <Field label="Số điện thoại" error={errors.phone}>
               <IconInput
                 icon={<Phone size={16} color={colors.mutedForeground} />}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(v) => set("phone", v)}
                 placeholder="0912 345 678"
                 keyboardType="phone-pad"
                 autoComplete="tel"
@@ -159,11 +185,11 @@ export default function AuthScreen() {
           </>
         ) : null}
 
-        <Field label="Email">
+        <Field label="Email" error={errors.email}>
           <IconInput
             icon={<Mail size={16} color={colors.mutedForeground} />}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => set("email", v)}
             placeholder="ban@email.com"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -171,11 +197,11 @@ export default function AuthScreen() {
           />
         </Field>
 
-        <Field label="Mật khẩu" hint="Tối thiểu 6 ký tự">
+        <Field label="Mật khẩu" hint="Tối thiểu 6 ký tự" error={errors.password}>
           <IconInput
             icon={<Lock size={16} color={colors.mutedForeground} />}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(v) => set("password", v)}
             placeholder="••••••"
             secureTextEntry
             autoComplete={mode === "login" ? "current-password" : "new-password"}

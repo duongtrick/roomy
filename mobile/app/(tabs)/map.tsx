@@ -87,18 +87,18 @@ export default function MapScreen() {
     [rooms, activeId],
   );
 
-  if (loading && rooms.length === 0) {
-    return (
-      <View style={styles.screen}>
-        <Loading label="Đang tải bản đồ…" />
-      </View>
-    );
-  }
-
   if (error && rooms.length === 0) {
     return (
       <View style={[styles.screen, { padding: 16, paddingTop: insets.top + 24 }]}>
         <LoadError message={error} onRetry={() => void reload()} />
+      </View>
+    );
+  }
+
+  if (loading && rooms.length === 0) {
+    return (
+      <View style={styles.screen}>
+        <Loading label="Đang tải bản đồ…" />
       </View>
     );
   }
