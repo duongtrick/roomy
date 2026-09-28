@@ -14,17 +14,17 @@ Roomy is positioned as a smart room search and room management product for stude
 - Security-sensitive flows are mostly in database policies and triggers: role assignment, moderation, listing verification, tenancy claim, review eligibility, invoice totals, and active lease uniqueness.
 - The README explains setup, demo accounts, moderation, RLS, and known `npm audit` noise well enough for judges or future maintainers.
 
-### Findings to fix
+### Findings
 
-1. Public review rows expose `author_id`.
+1. Public review rows exposed `author_id`.
 
-   `public.reviews` grants public select for reviews of published listings, and `public_listings` embeds `author_id` inside `reviews`. The mobile catalogue type ignores it, so this stable profile UUID is not needed by the public app. Keep `author_id` for admin and owner flows, but remove it from `public_listings` and avoid granting it to `anon`.
+   `public.reviews` grants public select for reviews of published listings, and `public_listings` embedded `author_id` inside `reviews`. The mobile catalogue type ignores it, so this stable profile UUID is not needed by the public app. Fixed by removing it from the public view while keeping admin review data intact.
 
    Files: `mobile/supabase/schema.sql`, `mobile/src/lib/database.types.ts`
 
-2. Existing projects need the same privacy cleanup in patches.
+2. Existing projects need patch-based privacy cleanup.
 
-   `schema.sql` is cleanly cumulative, but projects that already ran older SQL rely on patch order. Any fix for review privacy should ship both in `schema.sql` and a new patch under `mobile/supabase/patches/`.
+   `schema.sql` is cleanly cumulative, but projects that already ran older SQL rely on patch order. Fixed by adding `mobile/supabase/patches/2026-09-28-public-review-privacy.sql`.
 
 3. Search runs entirely client-side.
 

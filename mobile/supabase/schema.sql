@@ -1550,7 +1550,6 @@ SELECT
     SELECT jsonb_agg(
       jsonb_build_object(
         'id', r.id,
-        'author_id', r.author_id,
         'author_name', r.author_name,
         'rating', r.rating,
         'comment', r.comment,
