@@ -1,0 +1,4 @@
+interface:
+  display_name: "Roomy AI Features"
+  short_description: "Thêm và review tính năng AI cho app Roomy (Expo + Supabase)"
+  default_prompt: "Dùng $roomy-ai-features: đọc references/known-issues.md, sửa nhóm Phase 0, rồi cùng tôi chọn tính năng AI đầu tiên để làm."
