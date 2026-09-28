@@ -32,7 +32,7 @@ import {
 import { getRoom, getRooms, type Room } from "@/lib/api/catalogue";
 import { getReviewState, type ReviewState } from "@/lib/api/reviews";
 import { ROOM_STATUS_COLOR, ROOM_STATUS_LABEL } from "@/lib/dashboard-types";
-import { formatDistance, formatVND } from "@/lib/format";
+import { formatDistance, formatVND, formatVNDExact } from "@/lib/format";
 import { hasCoords, openDirections } from "@/lib/maps-link";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
@@ -274,6 +274,19 @@ export default function RoomDetailScreen() {
               <Muted style={{ lineHeight: 22 }}>{room.description}</Muted>
             </Section>
           ) : null}
+
+          <Section title="Chi phí sử dụng">
+            <View style={styles.costGrid}>
+              <View style={styles.costItem}>
+                <Text style={styles.costLabel}>Điện</Text>
+                <Text style={styles.costValue}>{formatVNDExact(room.electricityRate)}/kWh</Text>
+              </View>
+              <View style={styles.costItem}>
+                <Text style={styles.costLabel}>Nước</Text>
+                <Text style={styles.costValue}>{formatVNDExact(room.waterRate)}/m³</Text>
+              </View>
+            </View>
+          </Section>
 
           {room.amenities.length > 0 ? (
             <Section title="Tiện ích">
@@ -560,6 +573,29 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   amenityLabel: { flexShrink: 1, fontFamily: font.medium, fontSize: 14, color: colors.foreground },
+
+  costGrid: { flexDirection: "row", gap: 10 },
+  costItem: {
+    flex: 1,
+    padding: 14,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  costLabel: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.mutedForeground,
+  },
+  costValue: {
+    marginTop: 6,
+    fontFamily: font.semibold,
+    fontSize: 15,
+    color: colors.foreground,
+  },
 
   reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   reviewAuthor: { fontFamily: font.semibold, fontSize: 14, color: colors.foreground },

@@ -26,6 +26,8 @@ export type Room = {
   district: string;
   address: string;
   price: number;
+  electricityRate: number;
+  waterRate: number;
   size: number;
   amenities: string[];
   description: string;
@@ -47,7 +49,8 @@ export type Room = {
 };
 
 const SELECT = `
-  id, public_title, public_description, price, size, address, area, district,
+  id, public_title, public_description, price, electricity_rate, water_rate,
+  size, address, area, district,
   amenities, lat, lng, status, school_name, distance_to_school, verification,
   owner, images, reviews, created_at
 ` as const;
@@ -57,6 +60,8 @@ type CatalogueRow = {
   public_title: string | null;
   public_description: string | null;
   price: number;
+  electricity_rate: number;
+  water_rate: number;
   size: number | null;
   address: string | null;
   area: string | null;
@@ -114,6 +119,8 @@ function toRoom(row: CatalogueRow): Room {
     district: row.district ?? "",
     address: row.address ?? "",
     price: row.price,
+    electricityRate: row.electricity_rate,
+    waterRate: row.water_rate,
     size: row.size ?? 0,
     amenities: row.amenities,
     description: row.public_description ?? "",

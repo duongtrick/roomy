@@ -73,6 +73,8 @@ export type PublicListingRow = {
   public_title: string | null;
   public_description: string | null;
   price: number;
+  electricity_rate: number;
+  water_rate: number;
   size: number | null;
   address: string | null;
   area: string | null;
@@ -89,7 +91,6 @@ export type PublicListingRow = {
   images: { storage_path: string; sort_order: number }[];
   reviews: {
     id: string;
-    author_id: string | null;
     author_name: string;
     rating: number;
     comment: string;

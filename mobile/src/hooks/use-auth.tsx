@@ -50,6 +50,15 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const ROLE_RANK: Record<AppRole, number> = { tenant: 0, landlord: 1, admin: 2 };
+
+export function pickRole(rows: { role: AppRole }[] | null | undefined): AppRole {
+  return (rows ?? []).reduce<AppRole>(
+    (best, row) => (ROLE_RANK[row.role] > ROLE_RANK[best] ? row.role : best),
+    "tenant",
+  );
+}
+
 /**
  * Loads the profile row and role that go with a session.
  *
@@ -63,7 +72,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 async function loadUser(session: Session): Promise<AppUser> {
   const [profileResult, roleResult] = await Promise.all([
     supabase.from("profiles").select("full_name, phone").eq("id", session.user.id).maybeSingle(),
-    supabase.from("user_roles").select("role").eq("user_id", session.user.id).maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", session.user.id),
   ]);
 
   return {
@@ -71,7 +80,7 @@ async function loadUser(session: Session): Promise<AppUser> {
     email: session.user.email ?? "",
     full_name: profileResult.data?.full_name ?? null,
     phone: profileResult.data?.phone ?? null,
-    role: roleResult.data?.role ?? "tenant",
+    role: pickRole(roleResult.data),
   };
 }
 

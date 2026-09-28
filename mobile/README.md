@@ -14,12 +14,13 @@ nhập.
 | Lọc theo khoảng cách trường | Đã có     | Khám phá — dưới 500 m / 1 km / 2 km               |
 | Sắp xếp (giá, gần trường)  | Đã có      | Khám phá — ô "Sắp xếp"                            |
 | Hiển thị thông tin phòng   | Đã có      | Chi tiết phòng — ảnh, giá, diện tích, tiện ích    |
+| Giá điện/nước công khai    | Đã có      | Thẻ phòng và Chi tiết phòng — chi phí sử dụng     |
 | Xác thực tin đăng/chủ trọ  | Đã có      | Huy hiệu trên thẻ phòng · chủ trọ gửi yêu cầu ở Bảng điều khiển |
 | Kiểm duyệt tin trước khi đăng | Đã có   | Bảng quản trị → Hàng chờ; tin chưa duyệt không hiện công khai |
 | Quản trị hệ thống          | Đã có      | Tài khoản → Bảng quản trị — 4 tab                  |
 | Đánh giá phòng             | Đã có (chỉ người đã thuê) | Chi tiết phòng → ô viết đánh giá     |
 | Gợi ý phòng                | Đã có (luật) | Khám phá — "Gợi ý cho bạn", chấm điểm ở `src/lib/suggest.ts` |
-| Bản đồ phòng               | Đã có      | Bản đồ — react-native-maps                        |
+| Bản đồ phòng               | Đã có      | Bản đồ — Leaflet trong WebView, không cần khoá Google Maps |
 | Đặt lịch xem phòng         | Đã có      | Chi tiết phòng → Đặt lịch; chủ trọ duyệt ở tab Lịch |
 | Yêu thích                  | Đã có      | Trái tim trên thẻ phòng, lưu theo tài khoản       |
 | Quản lý phòng / đăng tin   | Đã có      | Bảng điều khiển — 6 tab                           |
@@ -118,49 +119,9 @@ Tài khoản người thuê demo được nối sẵn với một hợp đồng 
 
 ## Build Android
 
-Bản đồ trong app chạy qua `react-native-maps`. Trên Android nó **luôn** vẽ bằng
-Google Maps — `PROVIDER_DEFAULT` chỉ có nghĩa "Apple Maps" ở iOS — nên bản
-build native cần khoá Maps SDK riêng. Expo Go có khoá sẵn của nó, vì vậy chạy
-dev thì bản đồ vẫn hiện bình thường và chỉ đến bản release mới thành ô xám.
-
-**1. Tạo khoá** ở [Google Cloud Console](https://console.cloud.google.com/) →
-APIs & Services → Credentials → Create credentials → API key, rồi bật
-**Maps SDK for Android** cho project đó.
-
-**2. Giới hạn khoá** (Restrict key → Android apps). Khoá này nằm trong APK nên
-không giấu được; thứ bảo vệ nó là ràng buộc gói + chứng chỉ ký:
-
-| Trường            | Giá trị                                                              |
-| ----------------- | -------------------------------------------------------------------- |
-| Package name      | `vn.roomy.app`                                                       |
-| SHA-1 fingerprint | `eas credentials` (bản EAS) hoặc `keytool -list -v -keystore <file>` |
-
-Build debug và build release ký bằng hai chứng chỉ khác nhau — khai báo cả hai
-SHA-1, nếu không bản debug sẽ mất bản đồ.
-
-**3. Khai báo khoá.** `app.config.ts` đọc `GOOGLE_MAPS_ANDROID_API_KEY` từ môi
-trường và gắn vào `android.config.googleMaps.apiKey`:
-
-```bash
-# chạy/prebuild trên máy: thêm vào mobile/.env
-GOOGLE_MAPS_ANDROID_API_KEY=AIza...
-
-# build trên EAS: .env không được đẩy lên, phải dùng secret
-eas secret:create --scope project --name GOOGLE_MAPS_ANDROID_API_KEY --value AIza...
-```
-
-Thiếu biến này thì lệnh Expo in cảnh báo chứ không dừng — iOS và web không cần
-khoá, chặn cả hai vì thiếu một khoá Android là quá tay.
-
-**4. Kiểm tra** trước khi build cho chắc:
-
-```bash
-npx expo config --type prebuild --json
-```
-
-Trong kết quả phải thấy `android.config.googleMaps.apiKey`. Đừng kiểm bằng
-`--type public`: bản đó cố ý lọc bỏ `android.config`, luôn trống dù đã khai báo
-đúng.
+Bản đồ trong app chạy bằng `LeafletMap` trong WebView, dùng tile OpenStreetMap
+qua CARTO Voyager. Vì vậy bản Android hiện không cần `react-native-maps`, không
+cần `app.config.ts`, và không cần `GOOGLE_MAPS_ANDROID_API_KEY`.
 
 ## Quản trị hệ thống
 
@@ -174,9 +135,11 @@ Hàng chờ, Tin đăng, Đánh giá.
 chạy trong SQL Editor (quyền `postgres`, bỏ qua RLS):
 
 ```sql
+delete from public.user_roles
+where user_id in (select id from auth.users where email = 'ban@example.com');
+
 insert into public.user_roles (user_id, role)
-select id, 'admin' from auth.users where email = 'ban@example.com'
-on conflict (user_id, role) do nothing;
+select id, 'admin' from auth.users where email = 'ban@example.com';
 ```
 
 Tài khoản đó đăng xuất rồi đăng nhập lại là thấy nút vào bảng quản trị.
@@ -310,7 +273,6 @@ vào hàng chờ. Project mới chỉ cần `schema.sql`.
 ## Cấu trúc
 
 ```
-app.config.ts              cấu hình Expo động (khoá Google Maps cho Android)
 app/                       routes (expo-router, file-based)
   (tabs)/                  Khám phá · Bản đồ · Lịch · Yêu thích · Tài khoản
   room/[id].tsx            chi tiết phòng
@@ -339,7 +301,8 @@ scripts/seed.mjs           nạp dữ liệu mẫu
 - Chưa có màn upload ảnh trong app; thêm/sửa phòng nhập lat/lng bằng tay.
 - `src/lib/database.types.ts` viết tay. Có project rồi thì thay bằng
   `npx supabase gen types typescript --project-id <ref>`.
-- Viết đánh giá chưa có UI (bảng và policy đã sẵn sàng).
+- Chưa có nền tảng AI/Edge Function; xem `docs/Roomy_AI_Nghien_cuu.md` và
+  `.agents/skills/roomy-ai-features/`.
 
 ## Bảo trì
 

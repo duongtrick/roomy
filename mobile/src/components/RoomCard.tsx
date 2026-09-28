@@ -3,7 +3,7 @@ import { Link } from "expo-router";
 import { BadgeCheck, GraduationCap, Heart, ImageOff } from "lucide-react-native";
 import type { Room } from "@/lib/api/catalogue";
 import { ROOM_STATUS_COLOR, ROOM_STATUS_LABEL } from "@/lib/dashboard-types";
-import { formatDistance, formatVND } from "@/lib/format";
+import { formatDistance, formatVND, formatVNDExact } from "@/lib/format";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL } from "@/lib/verification";
 import { useFavorites } from "@/hooks/use-favorites";
 import { colors, font, radius, shadow } from "@/theme";
@@ -67,6 +67,10 @@ export function RoomCard({ room }: { room: Room }) {
                 {room.description}
               </Text>
             ) : null}
+            <Text style={styles.utilityText} numberOfLines={1}>
+              Điện {formatVNDExact(room.electricityRate)}/kWh · Nước{" "}
+              {formatVNDExact(room.waterRate)}/m³
+            </Text>
 
             <View style={styles.footer}>
               <Text style={styles.price}>
@@ -142,6 +146,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.mutedForeground,
+  },
+  utilityText: {
+    fontFamily: font.medium,
+    fontSize: 12,
+    color: colors.foreground,
   },
   footer: {
     marginTop: 4,
