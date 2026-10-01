@@ -7,6 +7,7 @@ import { answerRoomQuestion } from "../src/lib/room-qa.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 import { assessListingDraft } from "../src/lib/listing-draft-assistant.ts";
 import { summarizeReviews } from "../src/lib/review-summary.ts";
+import { renewalAssistant } from "../src/lib/lease-renewal-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -201,6 +202,42 @@ assert.equal(
     verification: "verified",
   }).label,
   "Sẵn sàng hơn",
+);
+
+assert.deepEqual(
+  renewalAssistant(
+    [
+      {
+        id: "late",
+        roomTitle: "P.101",
+        tenantName: "Minh",
+        endDate: "2026-09-20",
+        monthlyRent: 2_000_000,
+        status: "active",
+      },
+      {
+        id: "soon",
+        roomTitle: "P.102",
+        tenantName: "Lan",
+        endDate: "2026-10-15",
+        monthlyRent: 2_500_000,
+        status: "active",
+      },
+      {
+        id: "far",
+        roomTitle: "P.103",
+        tenantName: "An",
+        endDate: "2026-12-15",
+        monthlyRent: 3_000_000,
+        status: "active",
+      },
+    ],
+    "2026-10-01",
+  ).map((task) => [task.leaseId, task.tone]),
+  [
+    ["late", "urgent"],
+    ["soon", "soon"],
+  ],
 );
 
 console.log("self-check passed");

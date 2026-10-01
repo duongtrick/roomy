@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { FileText, Plus, Trash2 } from "lucide-react-native";
+import { FileText, Plus, Sparkles, Trash2 } from "lucide-react-native";
 import { createLease, deleteLease, updateLeaseStatus } from "@/lib/api/dashboard";
 import { confirm } from "@/lib/confirm";
 import { formatDate, formatVND, today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
+import { renewalAssistant, type LeaseRenewalTask } from "@/lib/lease-renewal-assistant";
 import type { Lease, Listing, Tenant } from "@/lib/dashboard-types";
 import { toast } from "../Toast";
 import {
@@ -51,6 +52,17 @@ export function LeasesTab({ data, reload }: TabProps) {
   const roomTitle = (id: string) => listings.find((x) => x.id === id)?.title ?? "—";
   const tenantName = (id: string) => tenants.find((x) => x.id === id)?.full_name ?? "—";
   const blocked = listings.length === 0 || tenants.length === 0;
+  const renewalTasks = renewalAssistant(
+    leases.map((lease) => ({
+      id: lease.id,
+      roomTitle: roomTitle(lease.listing_id),
+      tenantName: tenantName(lease.tenant_id),
+      endDate: lease.end_date,
+      monthlyRent: lease.monthly_rent,
+      status: lease.status,
+    })),
+    today(),
+  );
 
   return (
     <View>
@@ -79,6 +91,7 @@ export function LeasesTab({ data, reload }: TabProps) {
         />
       ) : (
         <View style={{ gap: 12 }}>
+          {renewalTasks.length > 0 ? <LeaseRenewalAssistant tasks={renewalTasks} /> : null}
           {leases.map((l) => {
             const active = l.status === "active";
             return (
@@ -134,6 +147,34 @@ export function LeasesTab({ data, reload }: TabProps) {
           await reload();
         }}
       />
+    </View>
+  );
+}
+
+function LeaseRenewalAssistant({ tasks }: { tasks: LeaseRenewalTask[] }) {
+  const urgent = tasks.filter((task) => task.tone === "urgent").length;
+  const tone = urgent > 0 ? colors.amber : colors.blue;
+
+  return (
+    <View style={[styles.aiBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <View style={styles.aiHead}>
+        <View style={styles.aiTitleRow}>
+          <Sparkles size={16} color={tone.fg} />
+          <Text style={[styles.aiTitle, { color: tone.fg }]}>Trợ lý gia hạn hợp đồng</Text>
+        </View>
+        <Text style={[styles.aiCount, { color: tone.fg }]}>
+          {tasks.length} việc
+        </Text>
+      </View>
+      <View style={{ gap: 10 }}>
+        {tasks.slice(0, 3).map((task) => (
+          <View key={task.leaseId} style={styles.aiTask}>
+            <Text style={[styles.aiTaskTitle, { color: tone.fg }]}>{task.title}</Text>
+            <Text style={[styles.aiTaskNote, { color: tone.fg }]}>{task.note}</Text>
+            <Text style={[styles.aiDraft, { color: tone.fg }]}>{task.draft}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -284,4 +325,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
+  aiBox: {
+    gap: 12,
+    padding: 14,
+    borderRadius: radius["2xl"],
+    borderWidth: 1,
+  },
+  aiHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  aiTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiTitle: { fontFamily: font.semibold, fontSize: 14 },
+  aiCount: { fontFamily: font.bold, fontSize: 12 },
+  aiTask: {
+    gap: 4,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderStrong,
+  },
+  aiTaskTitle: { fontFamily: font.semibold, fontSize: 13 },
+  aiTaskNote: { fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
+  aiDraft: { fontFamily: font.regular, fontSize: 12, lineHeight: 18, opacity: 0.9 },
 });
