@@ -39,6 +39,7 @@ import { formatDistance, formatVND, formatVNDExact } from "@/lib/format";
 import { depositGuidance } from "@/lib/listing-safety";
 import { hasCoords, openDirections } from "@/lib/maps-link";
 import { answerRoomQuestion, type RoomAnswer } from "@/lib/room-qa";
+import { summarizeReviews } from "@/lib/review-summary";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -176,6 +177,7 @@ export default function RoomDetailScreen() {
       : deposit.tone === "careful"
         ? colors.amber
         : { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong };
+  const reviewSummary = summarizeReviews(room.reviews);
   const askRoom = (value = question) => {
     const next = value.trim();
     if (!next) return;
@@ -532,6 +534,7 @@ export default function RoomDetailScreen() {
               <Muted size={13}>Chưa có đánh giá nào cho phòng này.</Muted>
             ) : (
               <View style={{ gap: 12 }}>
+                {reviewSummary ? <ReviewSummaryCard summary={reviewSummary} /> : null}
                 {room.reviews.map((r) => (
                   <Card key={r.id} style={{ gap: 8 }}>
                     <View style={styles.reviewHead}>
@@ -623,6 +626,43 @@ export default function RoomDetailScreen() {
         />
       </View>
     </View>
+  );
+}
+
+function ReviewSummaryCard({
+  summary,
+}: {
+  summary: NonNullable<ReturnType<typeof summarizeReviews>>;
+}) {
+  return (
+    <Card style={styles.reviewSummary}>
+      <View style={styles.reviewSummaryHead}>
+        <View style={styles.metaRow}>
+          <Star size={16} color={colors.primary} fill={colors.primary} />
+          <Text style={styles.reviewSummaryTitle}>
+            {summary.average}/5 từ {summary.count} đánh giá
+          </Text>
+        </View>
+        <Badge label="Tóm tắt AI" bg={colors.primarySoft} fg={colors.primaryDeep} />
+      </View>
+      <Text style={styles.reviewSummaryHeadline}>{summary.headline}</Text>
+      {summary.positives.length > 0 ? (
+        <View style={{ gap: 6 }}>
+          <Text style={styles.reviewSummaryLabel}>Điểm được khen</Text>
+          {summary.positives.map((item) => (
+            <Text key={item} style={styles.reviewSummaryText}>• {item}</Text>
+          ))}
+        </View>
+      ) : null}
+      {summary.cautions.length > 0 ? (
+        <View style={{ gap: 6 }}>
+          <Text style={styles.reviewSummaryLabel}>Nên kiểm tra thêm</Text>
+          {summary.cautions.map((item) => (
+            <Text key={item} style={styles.reviewSummaryText}>• {item}</Text>
+          ))}
+        </View>
+      ) : null}
+    </Card>
   );
 }
 
@@ -905,6 +945,33 @@ const styles = StyleSheet.create({
   },
 
   reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reviewSummary: { gap: 10, backgroundColor: colors.tint50 },
+  reviewSummaryHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  reviewSummaryTitle: { fontFamily: font.semibold, fontSize: 14, color: colors.foreground },
+  reviewSummaryHeadline: {
+    fontFamily: font.medium,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.foreground,
+  },
+  reviewSummaryLabel: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.mutedForeground,
+  },
+  reviewSummaryText: {
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.mutedForeground,
+  },
   reviewAuthor: { fontFamily: font.semibold, fontSize: 14, color: colors.foreground },
   reviewDate: { fontFamily: font.medium, fontSize: 11, color: colors.mutedForeground },
   reviewBody: {

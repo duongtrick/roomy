@@ -7,7 +7,7 @@ export type RoomQuestionInput = {
   address: string;
   amenities: string[];
   verification: "unverified" | "pending" | "verified";
-  reviews: { comment: string }[];
+  reviews: { rating?: number; comment: string }[];
 };
 
 export type RoomAnswer = {
@@ -51,6 +51,11 @@ function distance(meters: number) {
   if (meters < 1000) return `${Math.round(meters)} m`;
   const km = meters / 1000;
   return `${(km % 1 === 0 ? km.toFixed(0) : km.toFixed(1)).replace(".", ",")} km`;
+}
+
+function reviewAverage(reviews: { rating?: number }[]) {
+  const total = reviews.reduce((sum, review) => sum + (review.rating ?? 5), 0);
+  return Math.round((total / reviews.length) * 10) / 10;
 }
 
 export function answerRoomQuestion(room: RoomQuestionInput, question: string): RoomAnswer {
@@ -125,6 +130,17 @@ export function answerRoomQuestion(room: RoomQuestionInput, question: string): R
   if (/\b(danh gia|review|nguoi thue|tot khong)\b/.test(q)) {
     if (room.reviews.length === 0) {
       return { answer: "Phòng này chưa có đánh giá từ người từng thuê.", source: "Đánh giá" };
+    }
+    if (room.reviews.length >= 3) {
+      const average = reviewAverage(room.reviews);
+      const mentionsUtilityCost = room.reviews.some((review) =>
+        /\b(dien|điện|nuoc|nước|phi|phí|hoa don|hoá đơn|cao)\b/i.test(fold(review.comment)),
+      );
+      const caution = mentionsUtilityCost ? " Nên hỏi kỹ cách tính điện nước và phụ phí." : "";
+      return {
+        answer: `Điểm trung bình ${average}/5 từ ${room.reviews.length} đánh giá của người từng thuê.${caution}`,
+        source: "Tóm tắt đánh giá từ người thuê",
+      };
     }
     const best = room.reviews[0];
     return {

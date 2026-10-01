@@ -6,6 +6,7 @@ import { buildInvoiceReminder } from "../src/lib/invoice-reminder.ts";
 import { answerRoomQuestion } from "../src/lib/room-qa.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 import { assessListingDraft } from "../src/lib/listing-draft-assistant.ts";
+import { summarizeReviews } from "../src/lib/review-summary.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -115,12 +116,34 @@ const sampleRoom = {
   address: "Đường Z115",
   amenities: ["Wifi", "Điều hoà"],
   verification: "verified",
-  reviews: [{ comment: "Phòng yên tĩnh." }],
+  reviews: [{ rating: 5, comment: "Phòng yên tĩnh." }],
 };
 assert.match(answerRoomQuestion(sampleRoom, "điện nước bao nhiêu").answer, /3\.500đ\/kWh/);
 assert.equal(answerRoomQuestion(sampleRoom, "điện nước bao nhiêu").source, "Đơn giá điện nước");
 assert.match(answerRoomQuestion(sampleRoom, "gần trường không").answer, /350 m/);
 assert.match(answerRoomQuestion(sampleRoom, "có nuôi mèo không").answer, /chưa nêu/i);
+assert.equal(
+  summarizeReviews([
+    { rating: 5, comment: "Phòng sạch, yên tĩnh, gần trường." },
+    { rating: 4, comment: "Chủ nhà thân thiện, gửi xe tiện." },
+    { rating: 3, comment: "Nước hơi cao, nên hỏi kỹ hoá đơn." },
+  ])?.cautions[0],
+  "Nên hỏi kỹ cách tính điện nước và phụ phí.",
+);
+assert.match(
+  answerRoomQuestion(
+    {
+      ...sampleRoom,
+      reviews: [
+        { rating: 5, comment: "Phòng sạch, yên tĩnh, gần trường." },
+        { rating: 4, comment: "Chủ nhà thân thiện, gửi xe tiện." },
+        { rating: 4, comment: "Wifi ổn, gửi xe tiện." },
+      ],
+    },
+    "review tốt không",
+  ).answer,
+  /4\.3\/5 từ 3 đánh giá/,
+);
 assert.match(
   buildInvoiceReminder({
     tenantName: "Minh Anh",
