@@ -37,10 +37,13 @@ const schema = z.object({
       "Số điện thoại không hợp lệ",
     )
     .transform((value) => value.replace(/\s+/g, "")),
-  date: z
-    .string()
-    .min(1, "Vui lòng chọn ngày")
-    .refine((d) => d >= today(), "Ngày phải từ hôm nay trở đi"),
+  date: z.string().superRefine((d, ctx) => {
+    if (!d) {
+      ctx.addIssue({ code: "custom", message: "Vui lòng chọn ngày" });
+    } else if (d < today()) {
+      ctx.addIssue({ code: "custom", message: "Ngày phải từ hôm nay trở đi" });
+    }
+  }),
   // `z.enum` would reject the empty initial value with its own wording; a
   // refine keeps the "please choose" message the user actually needs.
   time: z.string().refine((t) => SLOTS.includes(t), "Vui lòng chọn khung giờ"),
