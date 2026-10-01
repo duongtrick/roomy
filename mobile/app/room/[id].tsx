@@ -14,6 +14,7 @@ import {
   MapPin,
   Navigation,
   Phone,
+  Send,
   ShieldQuestion,
   Star,
 } from "lucide-react-native";
@@ -37,6 +38,7 @@ import { ROOM_STATUS_COLOR, ROOM_STATUS_LABEL } from "@/lib/dashboard-types";
 import { formatDistance, formatVND, formatVNDExact } from "@/lib/format";
 import { depositGuidance } from "@/lib/listing-safety";
 import { hasCoords, openDirections } from "@/lib/maps-link";
+import { answerRoomQuestion, type RoomAnswer } from "@/lib/room-qa";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -55,9 +57,13 @@ export default function RoomDetailScreen() {
   const [active, setActive] = useState(0);
   const [electricityKwh, setElectricityKwh] = useState(DEFAULT_ELECTRICITY_KWH);
   const [waterM3, setWaterM3] = useState(DEFAULT_WATER_M3);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<RoomAnswer | null>(null);
 
   useEffect(() => {
     setActive(0);
+    setQuestion("");
+    setAnswer(null);
   }, [id]);
 
   // One fetcher for both so the screen has a single loading and error state
@@ -170,6 +176,12 @@ export default function RoomDetailScreen() {
       : deposit.tone === "careful"
         ? colors.amber
         : { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong };
+  const askRoom = (value = question) => {
+    const next = value.trim();
+    if (!next) return;
+    setQuestion(next);
+    setAnswer(answerRoomQuestion(room, next));
+  };
 
   return (
     <View style={styles.screen}>
@@ -332,6 +344,57 @@ export default function RoomDetailScreen() {
               <Muted style={{ lineHeight: 22 }}>{room.description}</Muted>
             </Section>
           ) : null}
+
+          <Section title="Hỏi nhanh về phòng">
+            <Card style={styles.qaCard}>
+              <View style={styles.qaInputRow}>
+                <TextInput
+                  value={question}
+                  onChangeText={setQuestion}
+                  placeholder="Ví dụ: điện nước bao nhiêu?"
+                  returnKeyType="send"
+                  onSubmitEditing={() => askRoom()}
+                  style={{ flex: 1 }}
+                />
+                <Pressable
+                  onPress={() => askRoom()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Hỏi về phòng"
+                  disabled={!question.trim()}
+                  style={({ pressed }) => [
+                    styles.qaButton,
+                    !question.trim() && styles.qaButtonDisabled,
+                    pressed && question.trim() ? { opacity: 0.8 } : null,
+                  ]}
+                >
+                  <Send size={18} color={colors.primaryForeground} />
+                </Pressable>
+              </View>
+              <View style={styles.qaChips}>
+                {["Điện nước bao nhiêu?", "Có gần trường không?", "Cọc có an toàn không?"].map(
+                  (sample) => (
+                    <Pressable
+                      key={sample}
+                      onPress={() => askRoom(sample)}
+                      style={({ pressed }) => [styles.qaChip, pressed && { opacity: 0.75 }]}
+                    >
+                      <Text style={styles.qaChipText}>{sample}</Text>
+                    </Pressable>
+                  ),
+                )}
+              </View>
+              {answer ? (
+                <View style={styles.qaAnswer}>
+                  <Text style={styles.qaAnswerText}>{answer.answer}</Text>
+                  <Text style={styles.qaSource}>Nguồn: {answer.source}</Text>
+                </View>
+              ) : (
+                <Muted size={12}>
+                  Trả lời bằng dữ liệu công khai của phòng. Không có dữ liệu thì Roomy sẽ nói chưa nêu.
+                </Muted>
+              )}
+            </Card>
+          </Section>
 
           <Section title="Tín hiệu an toàn">
             <View style={styles.safetyList}>
@@ -800,6 +863,46 @@ const styles = StyleSheet.create({
   depositChecks: { gap: 8 },
   depositCheck: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   depositCheckText: { flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
+  qaCard: { gap: 12 },
+  qaInputRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  qaButton: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  qaButtonDisabled: { opacity: 0.45 },
+  qaChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  qaChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+  },
+  qaChipText: { fontFamily: font.medium, fontSize: 11, color: colors.primaryDeep },
+  qaAnswer: {
+    gap: 6,
+    padding: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.tint50,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  qaAnswerText: {
+    fontFamily: font.medium,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.foreground,
+  },
+  qaSource: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: colors.mutedForeground,
+  },
 
   reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   reviewAuthor: { fontFamily: font.semibold, fontSize: 14, color: colors.foreground },

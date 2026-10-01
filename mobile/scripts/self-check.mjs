@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { depositGuidance } from "../src/lib/listing-safety.ts";
 import { assessListingRisk } from "../src/lib/listing-risk.ts";
+import { answerRoomQuestion } from "../src/lib/room-qa.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
@@ -102,5 +103,21 @@ assert.equal(
   }).level,
   "low",
 );
+
+const sampleRoom = {
+  price: 1_900_000,
+  electricityRate: 3500,
+  waterRate: 25000,
+  distanceToSchool: 350,
+  school: "ĐH CNTT&TT (ICTU)",
+  address: "Đường Z115",
+  amenities: ["Wifi", "Điều hoà"],
+  verification: "verified",
+  reviews: [{ comment: "Phòng yên tĩnh." }],
+};
+assert.match(answerRoomQuestion(sampleRoom, "điện nước bao nhiêu").answer, /3\.500đ\/kWh/);
+assert.equal(answerRoomQuestion(sampleRoom, "điện nước bao nhiêu").source, "Đơn giá điện nước");
+assert.match(answerRoomQuestion(sampleRoom, "gần trường không").answer, /350 m/);
+assert.match(answerRoomQuestion(sampleRoom, "có nuôi mèo không").answer, /chưa nêu/i);
 
 console.log("self-check passed");
