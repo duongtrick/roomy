@@ -28,6 +28,7 @@ import {
   Divider,
   Muted,
   SecondaryButton,
+  TextInput,
 } from "@/components/ui";
 import { getRoom, getRooms, type Room } from "@/lib/api/catalogue";
 import { getReviewState, type ReviewState } from "@/lib/api/reviews";
@@ -42,12 +43,16 @@ import { colors, font, radius, shadow } from "@/theme";
 type Detail = { room: Room | null; related: Room[] };
 const EMPTY: Detail = { room: null, related: [] };
 const NO_REVIEW: ReviewState = { canReview: false, mine: null };
+const DEFAULT_ELECTRICITY_KWH = "80";
+const DEFAULT_WATER_M3 = "4";
 
 export default function RoomDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { has, toggle } = useFavorites();
   const [active, setActive] = useState(0);
+  const [electricityKwh, setElectricityKwh] = useState(DEFAULT_ELECTRICITY_KWH);
+  const [waterM3, setWaterM3] = useState(DEFAULT_WATER_M3);
 
   useEffect(() => {
     setActive(0);
@@ -112,6 +117,12 @@ export default function RoomDetailScreen() {
   const phone = room.landlord.phone.replace(/\s/g, "");
   const cover = room.gallery[active] ?? room.image;
   const canBook = room.status === "available";
+  const estimatedTotal =
+    room.electricityRate != null && room.waterRate != null
+      ? room.price +
+        Number(electricityKwh || 0) * room.electricityRate +
+        Number(waterM3 || 0) * room.waterRate
+      : null;
   const safetySignals = [
     {
       title: VERIFICATION_LABEL[room.verification],
@@ -340,16 +351,47 @@ export default function RoomDetailScreen() {
                 </Card>
               ) : null}
               {room.electricityRate != null && room.waterRate != null ? (
-                <View style={styles.costGrid}>
-                  <View style={styles.costItem}>
-                    <Text style={styles.costLabel}>Điện</Text>
-                    <Text style={styles.costValue}>{formatVNDExact(room.electricityRate)}/kWh</Text>
+                <>
+                  <Card style={styles.estimateCard}>
+                    <View>
+                      <Text style={styles.costLabel}>Ước tính tháng của bạn</Text>
+                      <Text style={styles.estimateValue}>
+                        {formatVNDExact(estimatedTotal ?? room.price)}/tháng
+                      </Text>
+                    </View>
+                    <View style={styles.estimateInputs}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.estimateLabel}>Điện kWh</Text>
+                        <TextInput
+                          value={electricityKwh}
+                          onChangeText={(v) => setElectricityKwh(v.replace(/\D/g, "").slice(0, 4))}
+                          keyboardType="number-pad"
+                          style={styles.estimateInput}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.estimateLabel}>Nước m³</Text>
+                        <TextInput
+                          value={waterM3}
+                          onChangeText={(v) => setWaterM3(v.replace(/\D/g, "").slice(0, 3))}
+                          keyboardType="number-pad"
+                          style={styles.estimateInput}
+                        />
+                      </View>
+                    </View>
+                  </Card>
+
+                  <View style={styles.costGrid}>
+                    <View style={styles.costItem}>
+                      <Text style={styles.costLabel}>Điện</Text>
+                      <Text style={styles.costValue}>{formatVNDExact(room.electricityRate)}/kWh</Text>
+                    </View>
+                    <View style={styles.costItem}>
+                      <Text style={styles.costLabel}>Nước</Text>
+                      <Text style={styles.costValue}>{formatVNDExact(room.waterRate)}/m³</Text>
+                    </View>
                   </View>
-                  <View style={styles.costItem}>
-                    <Text style={styles.costLabel}>Nước</Text>
-                    <Text style={styles.costValue}>{formatVNDExact(room.waterRate)}/m³</Text>
-                  </View>
-                </View>
+                </>
               ) : null}
             </Section>
           ) : null}
@@ -647,6 +689,23 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: colors.primary,
   },
+  estimateCard: { gap: 12 },
+  estimateValue: {
+    marginTop: 6,
+    fontFamily: font.extrabold,
+    fontSize: 22,
+    color: colors.primary,
+  },
+  estimateInputs: { flexDirection: "row", gap: 10 },
+  estimateLabel: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.mutedForeground,
+    marginBottom: 6,
+  },
+  estimateInput: { height: 44 },
   costItem: {
     flex: 1,
     padding: 14,
