@@ -10,6 +10,7 @@ import {
   GraduationCap,
   Heart,
   ImageOff,
+  Info,
   MapPin,
   Navigation,
   Phone,
@@ -34,6 +35,7 @@ import { getRoom, getRooms, type Room } from "@/lib/api/catalogue";
 import { getReviewState, type ReviewState } from "@/lib/api/reviews";
 import { ROOM_STATUS_COLOR, ROOM_STATUS_LABEL } from "@/lib/dashboard-types";
 import { formatDistance, formatVND, formatVNDExact } from "@/lib/format";
+import { depositGuidance } from "@/lib/listing-safety";
 import { hasCoords, openDirections } from "@/lib/maps-link";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
@@ -156,6 +158,18 @@ export default function RoomDetailScreen() {
       good: room.electricityRate != null && room.waterRate != null,
     },
   ];
+  const deposit = depositGuidance({
+    verification: room.verification,
+    reviewCount: room.reviews.length,
+    hasUtilityRates: room.electricityRate != null && room.waterRate != null,
+    hasMapLocation: hasCoords(room.lat, room.lng),
+  });
+  const depositTone =
+    deposit.tone === "safe"
+      ? colors.emerald
+      : deposit.tone === "careful"
+        ? colors.amber
+        : { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong };
 
   return (
     <View style={styles.screen}>
@@ -335,6 +349,37 @@ export default function RoomDetailScreen() {
                 </View>
               ))}
             </View>
+          </Section>
+
+          <Section title="Cọc an toàn">
+            <Card
+              style={[
+                styles.depositCard,
+                { backgroundColor: depositTone.bg, borderColor: depositTone.border },
+              ]}
+            >
+              <View style={styles.depositHead}>
+                <Info size={18} color={depositTone.fg} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.depositTitle, { color: depositTone.fg }]}>
+                    {deposit.title}
+                  </Text>
+                  <Text style={[styles.depositNote, { color: depositTone.fg }]}>
+                    {deposit.note}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.depositChecks}>
+                {deposit.checks.map((check) => (
+                  <View key={check} style={styles.depositCheck}>
+                    <Check size={14} color={depositTone.fg} />
+                    <Text style={[styles.depositCheckText, { color: depositTone.fg }]}>
+                      {check}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Card>
           </Section>
 
           {room.trueCost || (room.electricityRate != null && room.waterRate != null) ? (
@@ -744,6 +789,17 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     marginBottom: 2,
   },
+  depositCard: { gap: 12 },
+  depositHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  depositTitle: { fontFamily: font.semibold, fontSize: 15, marginBottom: 3 },
+  depositNote: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
+  depositChecks: { gap: 8 },
+  depositCheck: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  depositCheckText: { flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
 
   reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   reviewAuthor: { fontFamily: font.semibold, fontSize: 14, color: colors.foreground },

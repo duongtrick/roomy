@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { depositGuidance } from "../src/lib/listing-safety.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
@@ -44,5 +45,33 @@ assert.deepEqual(parseRoomyQuery("Roomy ơi tìm phòng 2tr gần ICTU 1km an to
   availableOnly: true,
   verifiedOnly: true,
 });
+
+assert.equal(
+  depositGuidance({
+    verification: "verified",
+    reviewCount: 2,
+    hasUtilityRates: true,
+    hasMapLocation: true,
+  }).tone,
+  "safe",
+);
+assert.equal(
+  depositGuidance({
+    verification: "verified",
+    reviewCount: 0,
+    hasUtilityRates: false,
+    hasMapLocation: true,
+  }).tone,
+  "careful",
+);
+assert.equal(
+  depositGuidance({
+    verification: "unverified",
+    reviewCount: 0,
+    hasUtilityRates: false,
+    hasMapLocation: false,
+  }).tone,
+  "caution",
+);
 
 console.log("self-check passed");
