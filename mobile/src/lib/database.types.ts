@@ -98,6 +98,15 @@ export type PublicListingRow = {
   }[];
 };
 
+export type ListingTrueCostRow = {
+  listing_id: string;
+  invoice_count: number;
+  tenant_count: number;
+  avg_total_amount: number;
+  min_total_amount: number;
+  max_total_amount: number;
+};
+
 /**
  * Một dòng của view `admin_listings` — mọi tin đăng, kèm chủ trọ và ảnh.
  *
@@ -280,6 +289,7 @@ export type Database = {
     };
     Views: {
       public_listings: ReadOnlyView<PublicListingRow>;
+      listing_true_costs: ReadOnlyView<ListingTrueCostRow>;
       owner_listings: ReadOnlyView<ListingRow>;
       admin_listings: ReadOnlyView<AdminListingRow>;
       admin_reviews: ReadOnlyView<AdminReviewRow>;

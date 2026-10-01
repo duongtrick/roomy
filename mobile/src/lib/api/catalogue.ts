@@ -28,6 +28,13 @@ export type Room = {
   price: number;
   electricityRate: number | null;
   waterRate: number | null;
+  trueCost: {
+    invoiceCount: number;
+    tenantCount: number;
+    avgTotal: number;
+    minTotal: number;
+    maxTotal: number;
+  } | null;
   size: number;
   amenities: string[];
   description: string;
@@ -91,6 +98,14 @@ type CatalogueRow = {
   }[];
 };
 
+type TrueCostRow = {
+  invoice_count: number;
+  tenant_count: number;
+  avg_total_amount: number;
+  min_total_amount: number;
+  max_total_amount: number;
+};
+
 /** `2026-03-14T…` → `03/2026`, the form the review list shows. */
 function monthLabel(iso: string): string {
   const d = new Date(iso);
@@ -98,7 +113,7 @@ function monthLabel(iso: string): string {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
-function toRoom(row: CatalogueRow): Room {
+function toRoom(row: CatalogueRow, trueCost: TrueCostRow | null = null): Room {
   const gallery = [...row.images]
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((i) => photoUrl(i.storage_path))
@@ -127,6 +142,15 @@ function toRoom(row: CatalogueRow): Room {
     price: row.price,
     electricityRate: row.electricity_rate ?? null,
     waterRate: row.water_rate ?? null,
+    trueCost: trueCost
+      ? {
+          invoiceCount: trueCost.invoice_count,
+          tenantCount: trueCost.tenant_count,
+          avgTotal: trueCost.avg_total_amount,
+          minTotal: trueCost.min_total_amount,
+          maxTotal: trueCost.max_total_amount,
+        }
+      : null,
     size: row.size ?? 0,
     amenities: row.amenities,
     description: row.public_description ?? "",
@@ -147,6 +171,20 @@ function toRoom(row: CatalogueRow): Room {
   };
 }
 
+async function getTrueCost(listingId: string): Promise<TrueCostRow | null> {
+  const result = await supabase
+    .from("listing_true_costs")
+    .select("invoice_count, tenant_count, avg_total_amount, min_total_amount, max_total_amount")
+    .eq("listing_id", listingId)
+    .maybeSingle();
+
+  if (result.error?.code === "42P01" || result.error?.code === "42703" || result.error?.code === "PGRST205") {
+    return null;
+  }
+
+  return unwrapAs<TrueCostRow | null>(result);
+}
+
 export async function getRooms(): Promise<Room[]> {
   assertConfigured();
   const withRates = await supabase
@@ -154,7 +192,7 @@ export async function getRooms(): Promise<Room[]> {
     .select(SELECT_WITH_RATES)
     .order("created_at", { ascending: false });
   if (withRates.error?.code !== "42703") {
-    return unwrapAs<CatalogueRow[]>(withRates).map(toRoom);
+    return unwrapAs<CatalogueRow[]>(withRates).map((row) => toRoom(row));
   }
   const rows = unwrapAs<CatalogueRow[]>(
     await supabase
@@ -162,7 +200,7 @@ export async function getRooms(): Promise<Room[]> {
       .select(SELECT_BASE)
       .order("created_at", { ascending: false }),
   );
-  return rows.map(toRoom);
+  return rows.map((row) => toRoom(row));
 }
 
 export async function getRoom(id: string): Promise<Room | null> {
@@ -174,7 +212,8 @@ export async function getRoom(id: string): Promise<Room | null> {
     .maybeSingle();
   if (withRates.error?.code !== "42703") {
     const row = unwrapAs<CatalogueRow | null>(withRates);
-    return row ? toRoom(row) : null;
+    if (!row) return null;
+    return toRoom(row, await getTrueCost(id));
   }
   const row = unwrapAs<CatalogueRow | null>(
     await supabase
@@ -183,7 +222,8 @@ export async function getRoom(id: string): Promise<Room | null> {
       .eq("id", id)
       .maybeSingle(),
   );
-  return row ? toRoom(row) : null;
+  if (!row) return null;
+  return toRoom(row, await getTrueCost(id));
 }
 
 /** Distinct `area` values across published rooms, for the home filter. */

@@ -275,18 +275,31 @@ export default function RoomDetailScreen() {
             </Section>
           ) : null}
 
-          {room.electricityRate != null && room.waterRate != null ? (
+          {room.trueCost || (room.electricityRate != null && room.waterRate != null) ? (
             <Section title="Chi phí sử dụng">
-              <View style={styles.costGrid}>
-                <View style={styles.costItem}>
-                  <Text style={styles.costLabel}>Điện</Text>
-                  <Text style={styles.costValue}>{formatVNDExact(room.electricityRate)}/kWh</Text>
+              {room.trueCost ? (
+                <Card style={styles.trueCostCard}>
+                  <Text style={styles.costLabel}>Chi phí thực tế</Text>
+                  <Text style={styles.trueCostValue}>
+                    ~{formatVND(room.trueCost.minTotal)}–{formatVND(room.trueCost.maxTotal)}/tháng
+                  </Text>
+                  <Muted size={12}>
+                    Trung bình {formatVND(room.trueCost.avgTotal)} từ {room.trueCost.invoiceCount} kỳ hoá đơn.
+                  </Muted>
+                </Card>
+              ) : null}
+              {room.electricityRate != null && room.waterRate != null ? (
+                <View style={styles.costGrid}>
+                  <View style={styles.costItem}>
+                    <Text style={styles.costLabel}>Điện</Text>
+                    <Text style={styles.costValue}>{formatVNDExact(room.electricityRate)}/kWh</Text>
+                  </View>
+                  <View style={styles.costItem}>
+                    <Text style={styles.costLabel}>Nước</Text>
+                    <Text style={styles.costValue}>{formatVNDExact(room.waterRate)}/m³</Text>
+                  </View>
                 </View>
-                <View style={styles.costItem}>
-                  <Text style={styles.costLabel}>Nước</Text>
-                  <Text style={styles.costValue}>{formatVNDExact(room.waterRate)}/m³</Text>
-                </View>
-              </View>
+              ) : null}
             </Section>
           ) : null}
 
@@ -577,6 +590,12 @@ const styles = StyleSheet.create({
   amenityLabel: { flexShrink: 1, fontFamily: font.medium, fontSize: 14, color: colors.foreground },
 
   costGrid: { flexDirection: "row", gap: 10 },
+  trueCostCard: { gap: 6 },
+  trueCostValue: {
+    fontFamily: font.extrabold,
+    fontSize: 20,
+    color: colors.primary,
+  },
   costItem: {
     flex: 1,
     padding: 14,
