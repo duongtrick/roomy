@@ -112,6 +112,39 @@ export default function RoomDetailScreen() {
   const phone = room.landlord.phone.replace(/\s/g, "");
   const cover = room.gallery[active] ?? room.image;
   const canBook = room.status === "available";
+  const safetySignals = [
+    {
+      title: VERIFICATION_LABEL[room.verification],
+      note: VERIFICATION_NOTE[room.verification],
+      good: room.verification === "verified",
+    },
+    {
+      title: room.reviews.length > 0 ? "Có đánh giá từ người thuê" : "Chưa có đánh giá",
+      note:
+        room.reviews.length > 0
+          ? `${room.reviews.length} nhận xét từ người từng thuê phòng.`
+          : "Nên đặt lịch xem phòng và hỏi kỹ điều khoản trước khi cọc.",
+      good: room.reviews.length > 0,
+    },
+    {
+      title: hasCoords(room.lat, room.lng) ? "Có vị trí bản đồ" : "Chưa có toạ độ",
+      note: hasCoords(room.lat, room.lng)
+        ? "Vị trí có thể mở để kiểm tra đường đi."
+        : "Nên xin địa chỉ rõ ràng trước khi đi xem.",
+      good: hasCoords(room.lat, room.lng),
+    },
+    {
+      title:
+        room.electricityRate != null && room.waterRate != null
+          ? "Công khai giá điện nước"
+          : "Chưa công khai giá điện nước",
+      note:
+        room.electricityRate != null && room.waterRate != null
+          ? "Có đơn giá để tự ước tính chi phí hằng tháng."
+          : "Nên hỏi đơn giá điện nước trước khi đặt cọc.",
+      good: room.electricityRate != null && room.waterRate != null,
+    },
+  ];
 
   return (
     <View style={styles.screen}>
@@ -274,6 +307,24 @@ export default function RoomDetailScreen() {
               <Muted style={{ lineHeight: 22 }}>{room.description}</Muted>
             </Section>
           ) : null}
+
+          <Section title="Tín hiệu an toàn">
+            <View style={styles.safetyList}>
+              {safetySignals.map((signal) => (
+                <View key={signal.title} style={styles.safetyItem}>
+                  {signal.good ? (
+                    <BadgeCheck size={18} color={colors.primary} />
+                  ) : (
+                    <ShieldQuestion size={18} color={colors.mutedForeground} />
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.safetyTitle}>{signal.title}</Text>
+                    <Muted size={12}>{signal.note}</Muted>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </Section>
 
           {room.trueCost || (room.electricityRate != null && room.waterRate != null) ? (
             <Section title="Chi phí sử dụng">
@@ -616,6 +667,23 @@ const styles = StyleSheet.create({
     fontFamily: font.semibold,
     fontSize: 15,
     color: colors.foreground,
+  },
+  safetyList: { gap: 10 },
+  safetyItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  safetyTitle: {
+    fontFamily: font.semibold,
+    fontSize: 13,
+    color: colors.foreground,
+    marginBottom: 2,
   },
 
   reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
