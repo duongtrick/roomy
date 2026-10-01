@@ -34,7 +34,10 @@ export default function AuthScreen() {
   // `onAuthStateChange` lands after the request resolves, so leaving is driven
   // by the session rather than by the submit handler.
   useEffect(() => {
-    if (user) router.back();
+    if (user) {
+      if (router.canGoBack()) router.back();
+      else router.replace("/");
+    }
   }, [user]);
 
   const set = (field: "email" | "password" | "fullName" | "phone", value: string) => {
