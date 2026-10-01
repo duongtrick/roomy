@@ -173,6 +173,8 @@ export default function BookingsScreen() {
                     onPress={() =>
                       void mutate(setBookingStatus(b.id, "confirmed"), "Đã xác nhận lịch")
                     }
+                    accessibilityRole="button"
+                    accessibilityLabel="Xác nhận lịch"
                     style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}
                   >
                     <Check size={13} color={colors.emerald.fg} />
@@ -183,6 +185,8 @@ export default function BookingsScreen() {
                 {b.status !== "cancelled" ? (
                   <Pressable
                     onPress={() => void mutate(setBookingStatus(b.id, "cancelled"), "Đã hủy lịch")}
+                    accessibilityRole="button"
+                    accessibilityLabel="Hủy lịch"
                     style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}
                   >
                     <X size={13} color={colors.foreground} />
@@ -194,6 +198,8 @@ export default function BookingsScreen() {
                 {!isLandlord ? (
                   <Pressable
                     onPress={() => void askRemove(b.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Xoá lịch xem"
                     style={({ pressed }) => [
                       styles.action,
                       styles.actionGhost,
