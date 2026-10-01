@@ -12,6 +12,7 @@ import {
   Receipt,
   Search,
   ShieldCheck,
+  Sparkles,
   Trash2,
   User,
   Zap,
@@ -43,6 +44,7 @@ import {
 } from "@/lib/dashboard-types";
 import type { VerificationLevel } from "@/lib/database.types";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, toVerification } from "@/lib/verification";
+import { assessListingDraft } from "@/lib/listing-draft-assistant";
 import {
   MODERATION_COLOR,
   MODERATION_LABEL,
@@ -426,6 +428,48 @@ function RoomForm({
   const [distance, setDistance] = useState("");
   const [verification, setVerification] = useState<VerificationLevel>("unverified");
 
+  const draftAssistant = useMemo(
+    () =>
+      assessListingDraft({
+        title,
+        price,
+        size,
+        electricityRate,
+        waterRate,
+        publicTitle,
+        publicDescription,
+        address,
+        area,
+        district,
+        amenities,
+        lat,
+        lng,
+        school,
+        distance,
+        isPublished,
+        verification,
+      }),
+    [
+      address,
+      amenities,
+      area,
+      distance,
+      district,
+      electricityRate,
+      isPublished,
+      lat,
+      lng,
+      price,
+      publicDescription,
+      publicTitle,
+      school,
+      size,
+      title,
+      verification,
+      waterRate,
+    ],
+  );
+
   useEffect(() => {
     if (!open) return;
     setTitle(initial?.title ?? "");
@@ -724,6 +768,7 @@ function RoomForm({
           <Field label="Mô tả công khai">
             <TextInput value={publicDescription} onChangeText={setPublicDescription} multiline />
           </Field>
+          <ListingDraftAssistantCard result={draftAssistant} />
           <Field label="Khu vực">
             <TextInput value={area} onChangeText={setArea} placeholder="VD: Phường Quang Trung" />
           </Field>
@@ -818,6 +863,43 @@ function RoomForm({
         </View>
       ) : null}
     </Sheet>
+  );
+}
+
+function ListingDraftAssistantCard({
+  result,
+}: {
+  result: ReturnType<typeof assessListingDraft>;
+}) {
+  const tone =
+    result.score >= 80 ? colors.emerald : result.score >= 55 ? colors.amber : colors.neutral;
+  const items = [...result.missing, ...result.tips].slice(0, 4);
+
+  return (
+    <View style={[styles.aiDraftBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <View style={styles.aiDraftHead}>
+        <View style={styles.iconRow}>
+          <Sparkles size={16} color={tone.fg} />
+          <Text style={[styles.aiDraftTitle, { color: tone.fg }]}>Trợ lý hoàn thiện tin</Text>
+        </View>
+        <Text style={[styles.aiDraftScore, { color: tone.fg }]}>
+          {result.score}/100 · {result.label}
+        </Text>
+      </View>
+      {items.length > 0 ? (
+        <View style={{ gap: 4 }}>
+          {items.map((item) => (
+            <Text key={item} style={[styles.aiDraftText, { color: tone.fg }]}>
+              • {item}
+            </Text>
+          ))}
+        </View>
+      ) : (
+        <Text style={[styles.aiDraftText, { color: tone.fg }]}>
+          Tin đã đủ thông tin cơ bản để người thuê ra quyết định nhanh hơn.
+        </Text>
+      )}
+    </View>
   );
 }
 
@@ -1345,6 +1427,21 @@ const styles = StyleSheet.create({
   },
   toggleOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   toggleLabel: { fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground },
+  aiDraftBox: {
+    gap: 8,
+    padding: 12,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+  },
+  aiDraftHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  aiDraftTitle: { fontFamily: font.semibold, fontSize: 13 },
+  aiDraftScore: { fontFamily: font.bold, fontSize: 12 },
+  aiDraftText: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
 
   moderationBox: {
     gap: 4,

@@ -5,6 +5,7 @@ import { assessListingRisk } from "../src/lib/listing-risk.ts";
 import { buildInvoiceReminder } from "../src/lib/invoice-reminder.ts";
 import { answerRoomQuestion } from "../src/lib/room-qa.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
+import { assessListingDraft } from "../src/lib/listing-draft-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -130,6 +131,53 @@ assert.match(
     overdue: true,
   }),
   /Minh Anh.*P\.101.*3\.450\.000đ.*10\/10\/2026/,
+);
+
+assert.equal(
+  assessListingDraft({
+    title: "P.101",
+    price: "2500000",
+    size: "",
+    electricityRate: "3500",
+    waterRate: "25000",
+    publicTitle: "",
+    publicDescription: "Phòng sạch.",
+    address: "",
+    area: "",
+    district: "",
+    amenities: "Wifi",
+    lat: "",
+    lng: "",
+    school: "",
+    distance: "",
+    isPublished: true,
+    verification: "unverified",
+  }).label,
+  "Cần bổ sung",
+);
+
+assert.equal(
+  assessListingDraft({
+    title: "Studio ban công gần ICTU",
+    price: "2800000",
+    size: "24",
+    electricityRate: "3500",
+    waterRate: "25000",
+    publicTitle: "Studio ban công gần ICTU",
+    publicDescription:
+      "Phòng studio sáng, có ban công, vệ sinh khép kín, Wifi riêng, chỗ để xe và lối đi thuận tiện cho sinh viên.",
+    address: "Đường Z115, Thái Nguyên",
+    area: "Tân Thịnh",
+    district: "Gần ICTU",
+    amenities: "Wifi, Điều hoà, Ban công, Gửi xe",
+    lat: "21.592",
+    lng: "105.832",
+    school: "ICTU",
+    distance: "450",
+    isPublished: true,
+    verification: "verified",
+  }).label,
+  "Sẵn sàng hơn",
 );
 
 console.log("self-check passed");
