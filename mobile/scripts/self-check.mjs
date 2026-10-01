@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { depositGuidance } from "../src/lib/listing-safety.ts";
 import { assessListingRisk } from "../src/lib/listing-risk.ts";
+import { buildInvoiceReminder } from "../src/lib/invoice-reminder.ts";
 import { answerRoomQuestion } from "../src/lib/room-qa.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 
@@ -119,5 +120,16 @@ assert.match(answerRoomQuestion(sampleRoom, "điện nước bao nhiêu").answer
 assert.equal(answerRoomQuestion(sampleRoom, "điện nước bao nhiêu").source, "Đơn giá điện nước");
 assert.match(answerRoomQuestion(sampleRoom, "gần trường không").answer, /350 m/);
 assert.match(answerRoomQuestion(sampleRoom, "có nuôi mèo không").answer, /chưa nêu/i);
+assert.match(
+  buildInvoiceReminder({
+    tenantName: "Minh Anh",
+    roomTitle: "P.101",
+    period: "2026-10",
+    totalAmount: 3_450_000,
+    dueDate: "2026-10-10",
+    overdue: true,
+  }),
+  /Minh Anh.*P\.101.*3\.450\.000đ.*10\/10\/2026/,
+);
 
 console.log("self-check passed");

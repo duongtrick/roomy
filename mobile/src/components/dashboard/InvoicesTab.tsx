@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Plus, Receipt, Trash2 } from "lucide-react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { MessageCircle, Plus, Receipt, Trash2 } from "lucide-react-native";
 import { createInvoice, deleteInvoice, setInvoicePaid } from "@/lib/api/dashboard";
 import { confirm } from "@/lib/confirm";
-import { formatDate, formatVND } from "@/lib/format";
+import { formatDate, formatVND, today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
+import { buildInvoiceReminder } from "@/lib/invoice-reminder";
 import {
   currentPeriod,
   type Invoice,
@@ -34,6 +35,7 @@ import { colors, font, radius } from "@/theme";
 export function InvoicesTab({ data, reload }: TabProps) {
   const { invoices, listings, tenants, leases, meters } = data;
   const [showForm, setShowForm] = useState(false);
+  const [reminder, setReminder] = useState<ReminderDraft | null>(null);
 
   const markPaid = async (inv: Invoice) => {
     try {
@@ -57,6 +59,21 @@ export function InvoicesTab({ data, reload }: TabProps) {
 
   const room = (id: string) => listings.find((x) => x.id === id);
   const tenant = (id: string | null) => (id ? tenants.find((x) => x.id === id) : null);
+  const openReminder = (inv: Invoice) => {
+    const listing = room(inv.listing_id);
+    const renter = tenant(inv.tenant_id);
+    setReminder({
+      phone: renter?.phone ?? null,
+      message: buildInvoiceReminder({
+        tenantName: renter?.full_name ?? null,
+        roomTitle: listing?.title ?? "—",
+        period: inv.period,
+        totalAmount: inv.total_amount,
+        dueDate: inv.due_date,
+        overdue: Boolean(inv.due_date && inv.due_date < today()),
+      }),
+    });
+  };
 
   const totalUnpaid = invoices
     .filter((i) => i.status !== "paid")
@@ -140,9 +157,19 @@ export function InvoicesTab({ data, reload }: TabProps) {
                   },
                 ]}
                 actions={
-                  <IconButton accessibilityLabel="Xoá" onPress={() => void handleDelete(inv.id)}>
-                    <Trash2 size={16} color={colors.destructive} />
-                  </IconButton>
+                  <View style={styles.actionRow}>
+                    {!paid ? (
+                      <IconButton
+                        accessibilityLabel="Soạn tin nhắc thanh toán"
+                        onPress={() => openReminder(inv)}
+                      >
+                        <MessageCircle size={16} color={colors.primary} />
+                      </IconButton>
+                    ) : null}
+                    <IconButton accessibilityLabel="Xoá" onPress={() => void handleDelete(inv.id)}>
+                      <Trash2 size={16} color={colors.destructive} />
+                    </IconButton>
+                  </View>
                 }
               />
             );
@@ -162,7 +189,56 @@ export function InvoicesTab({ data, reload }: TabProps) {
           await reload();
         }}
       />
+      <ReminderSheet reminder={reminder} onClose={() => setReminder(null)} />
     </View>
+  );
+}
+
+type ReminderDraft = {
+  phone: string | null;
+  message: string;
+};
+
+function ReminderSheet({
+  reminder,
+  onClose,
+}: {
+  reminder: ReminderDraft | null;
+  onClose: () => void;
+}) {
+  const sendSms = () => {
+    if (!reminder?.phone) {
+      toast.info("Người thuê chưa có số điện thoại.");
+      return;
+    }
+    const url = `sms:${reminder.phone}?body=${encodeURIComponent(reminder.message)}`;
+    Linking.openURL(url).catch(() => toast.error("Không mở được ứng dụng nhắn tin."));
+  };
+
+  return (
+    <Sheet
+      open={Boolean(reminder)}
+      title="Tin nhắc thanh toán"
+      onClose={onClose}
+      footer={
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <SecondaryButton label="Đóng" onPress={onClose} style={{ flex: 1 }} />
+          <AccentButton
+            label="Mở SMS"
+            disabled={!reminder?.phone}
+            onPress={sendSms}
+            style={{ flex: 1 }}
+          />
+        </View>
+      }
+    >
+      <View style={styles.reminderBox}>
+        <Text style={styles.reminderText}>{reminder?.message}</Text>
+      </View>
+      <Muted size={12}>
+        Tin nhắn được soạn từ dữ liệu hoá đơn. Chủ trọ kiểm tra lại nội dung trước khi gửi.
+      </Muted>
+    </Sheet>
   );
 }
 
@@ -355,6 +431,7 @@ function BreakdownRow({
 
 const styles = StyleSheet.create({
   summary: { fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 4 },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 4 },
 
   statusChip: {
     paddingHorizontal: 10,
@@ -369,6 +446,19 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   total: { fontFamily: font.bold, fontSize: 14, color: colors.foreground },
+  reminderBox: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.tint50,
+    padding: 14,
+  },
+  reminderText: {
+    fontFamily: font.regular,
+    fontSize: 14,
+    lineHeight: 22,
+    color: colors.foreground,
+  },
 
   warning: {
     borderRadius: radius.lg,
