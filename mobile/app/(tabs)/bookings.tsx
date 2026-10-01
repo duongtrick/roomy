@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { Calendar, CalendarDays, Check, Clock, LogIn, Trash2, X } from "lucide-react-native";
 import { BrandHeader, PageHeading } from "@/components/ScreenHeader";
 import { Loading, LoadError } from "@/components/AsyncState";
-import { AccentButton, Badge, Display, EmptyState } from "@/components/ui";
+import { AccentButton, Badge, Card, Display, EmptyState } from "@/components/ui";
 import { toast } from "@/components/Toast";
 import {
   deleteBooking,
@@ -15,6 +15,7 @@ import {
   type BookingStatus,
 } from "@/lib/api/bookings";
 import { formatDate } from "@/lib/format";
+import { today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 import { confirm } from "@/lib/confirm";
 import { useAsync } from "@/hooks/use-async";
@@ -32,6 +33,12 @@ const STATUS_STYLE: Record<BookingStatus, { bg: string; fg: string }> = {
 export default function BookingsScreen() {
   const { user, isLandlord } = useAuth();
   const { data: bookings, loading, error, reload } = useAsync(getBookings, NO_BOOKINGS);
+  const todayIso = today();
+  const pending = bookings.filter((b) => b.status === "pending");
+  const upcomingConfirmed = bookings
+    .filter((b) => b.status === "confirmed" && b.date >= todayIso)
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  const cancelled = bookings.filter((b) => b.status === "cancelled");
 
   const mutate = useCallback(
     async (action: Promise<void>, done: string) => {
@@ -104,6 +111,35 @@ export default function BookingsScreen() {
                   : "Theo dõi trạng thái xác nhận từ chủ trọ."
               }
             />
+            {bookings.length > 0 ? (
+              <Card style={styles.insight}>
+                <Text style={styles.insightKicker}>Gợi ý xử lý</Text>
+                <Text style={styles.insightTitle}>
+                  {isLandlord
+                    ? pending.length > 0
+                      ? `${pending.length} yêu cầu đang chờ xác nhận`
+                      : upcomingConfirmed.length > 0
+                        ? `Lịch gần nhất: ${formatDate(upcomingConfirmed[0].date)} lúc ${
+                            upcomingConfirmed[0].time
+                          }`
+                        : "Không có lịch cần xử lý ngay"
+                    : pending.length > 0
+                      ? "Đang chờ chủ trọ xác nhận"
+                      : upcomingConfirmed.length > 0
+                        ? `Lịch đã xác nhận gần nhất: ${formatDate(upcomingConfirmed[0].date)}`
+                        : "Chưa có lịch xem sắp tới"}
+                </Text>
+                <Text style={styles.insightNote}>
+                  {isLandlord
+                    ? pending.length > 0
+                      ? "Xác nhận sớm giúp giữ khách đang có nhu cầu thật."
+                      : `${upcomingConfirmed.length} lịch sắp tới · ${cancelled.length} lịch đã hủy.`
+                    : pending.length > 0
+                      ? "Nếu quá lâu chưa phản hồi, thử gọi chủ trọ hoặc chọn thêm phòng dự phòng."
+                      : `${upcomingConfirmed.length} lịch sắp tới · ${cancelled.length} lịch đã hủy.`}
+                </Text>
+              </Card>
+            ) : null}
             {error ? (
               <View style={{ paddingBottom: 16 }}>
                 <LoadError message={error} onRetry={() => void reload()} />
@@ -223,6 +259,21 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   body: { flex: 1, justifyContent: "center", paddingHorizontal: 16, gap: 8 },
   list: { paddingHorizontal: 16, paddingBottom: 40 },
+  insight: { gap: 6, marginBottom: 16 },
+  insightKicker: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: colors.primary,
+  },
+  insightTitle: { fontFamily: font.semibold, fontSize: 16, color: colors.foreground },
+  insightNote: {
+    fontFamily: font.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.mutedForeground,
+  },
 
   card: {
     backgroundColor: colors.card,
