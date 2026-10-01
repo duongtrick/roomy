@@ -9,6 +9,7 @@ import { assessListingDraft } from "../src/lib/listing-draft-assistant.ts";
 import { summarizeReviews } from "../src/lib/review-summary.ts";
 import { renewalAssistant } from "../src/lib/lease-renewal-assistant.ts";
 import { bookingAssistant } from "../src/lib/booking-assistant.ts";
+import { affordabilityAdvice } from "../src/lib/affordability-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -279,5 +280,10 @@ assert.deepEqual(
     ["today", "today"],
   ],
 );
+
+assert.equal(affordabilityAdvice(2_000_000, "3000000")?.level, "safe");
+assert.equal(affordabilityAdvice(2_900_000, "3000000")?.level, "careful");
+assert.equal(affordabilityAdvice(3_500_000, "3000000")?.level, "over");
+assert.equal(affordabilityAdvice(2_000_000, ""), null);
 
 console.log("self-check passed");

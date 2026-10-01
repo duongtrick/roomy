@@ -40,6 +40,7 @@ import { depositGuidance } from "@/lib/listing-safety";
 import { hasCoords, openDirections } from "@/lib/maps-link";
 import { answerRoomQuestion, type RoomAnswer } from "@/lib/room-qa";
 import { summarizeReviews } from "@/lib/review-summary";
+import { affordabilityAdvice } from "@/lib/affordability-assistant";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -58,6 +59,7 @@ export default function RoomDetailScreen() {
   const [active, setActive] = useState(0);
   const [electricityKwh, setElectricityKwh] = useState(DEFAULT_ELECTRICITY_KWH);
   const [waterM3, setWaterM3] = useState(DEFAULT_WATER_M3);
+  const [monthlyBudget, setMonthlyBudget] = useState("");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<RoomAnswer | null>(null);
 
@@ -132,6 +134,7 @@ export default function RoomDetailScreen() {
         Number(electricityKwh || 0) * room.electricityRate +
         Number(waterM3 || 0) * room.waterRate
       : null;
+  const budgetAdvice = affordabilityAdvice(estimatedTotal ?? room.price, monthlyBudget);
   const safetySignals = [
     {
       title: VERIFICATION_LABEL[room.verification],
@@ -489,6 +492,17 @@ export default function RoomDetailScreen() {
                         />
                       </View>
                     </View>
+                    <View>
+                      <Text style={styles.estimateLabel}>Ngân sách tối đa/tháng</Text>
+                      <TextInput
+                        value={monthlyBudget}
+                        onChangeText={(v) => setMonthlyBudget(v.replace(/\D/g, "").slice(0, 9))}
+                        keyboardType="number-pad"
+                        placeholder="VD: 3000000"
+                        style={styles.estimateInput}
+                      />
+                    </View>
+                    {budgetAdvice ? <AffordabilityCard advice={budgetAdvice} /> : null}
                   </Card>
 
                   <View style={styles.costGrid}>
@@ -625,6 +639,26 @@ export default function RoomDetailScreen() {
           onPress={() => router.push({ pathname: "/book/[roomId]", params: { roomId: room.id } })}
         />
       </View>
+    </View>
+  );
+}
+
+function AffordabilityCard({
+  advice,
+}: {
+  advice: NonNullable<ReturnType<typeof affordabilityAdvice>>;
+}) {
+  const tone =
+    advice.level === "safe"
+      ? colors.emerald
+      : advice.level === "careful"
+        ? colors.amber
+        : { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong };
+
+  return (
+    <View style={[styles.affordabilityBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <Text style={[styles.affordabilityTitle, { color: tone.fg }]}>{advice.title}</Text>
+      <Text style={[styles.affordabilityText, { color: tone.fg }]}>{advice.note}</Text>
     </View>
   );
 }
@@ -854,6 +888,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   estimateInput: { height: 44 },
+  affordabilityBox: {
+    gap: 4,
+    padding: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  },
+  affordabilityTitle: { fontFamily: font.semibold, fontSize: 13 },
+  affordabilityText: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
   costItem: {
     flex: 1,
     padding: 14,
