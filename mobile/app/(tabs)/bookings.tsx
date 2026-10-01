@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { Calendar, CalendarDays, Check, Clock, LogIn, Trash2, X } from "lucide-react-native";
+import { Calendar, CalendarDays, Check, Clock, LogIn, Sparkles, Trash2, X } from "lucide-react-native";
 import { BrandHeader, PageHeading } from "@/components/ScreenHeader";
 import { Loading, LoadError } from "@/components/AsyncState";
 import { AccentButton, Badge, Card, Display, EmptyState } from "@/components/ui";
@@ -18,6 +18,7 @@ import { formatDate } from "@/lib/format";
 import { today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 import { confirm } from "@/lib/confirm";
+import { bookingAssistant, type BookingAssistantTask } from "@/lib/booking-assistant";
 import { useAsync } from "@/hooks/use-async";
 import { useAuth } from "@/hooks/use-auth";
 import { colors, font, radius } from "@/theme";
@@ -35,6 +36,7 @@ export default function BookingsScreen() {
   const { data: bookings, loading, error, reload } = useAsync(getBookings, NO_BOOKINGS);
   const todayIso = today();
   const pending = bookings.filter((b) => b.status === "pending");
+  const bookingTasks = bookingAssistant(bookings, todayIso);
   const upcomingConfirmed = bookings
     .filter((b) => b.status === "confirmed" && b.date >= todayIso)
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
@@ -139,6 +141,9 @@ export default function BookingsScreen() {
                       : `${upcomingConfirmed.length} lịch sắp tới · ${cancelled.length} lịch đã hủy.`}
                 </Text>
               </Card>
+            ) : null}
+            {isLandlord && bookingTasks.length > 0 ? (
+              <BookingAssistantCard tasks={bookingTasks} />
             ) : null}
             {error ? (
               <View style={{ paddingBottom: 16 }}>
@@ -255,6 +260,30 @@ export default function BookingsScreen() {
   );
 }
 
+function BookingAssistantCard({ tasks }: { tasks: BookingAssistantTask[] }) {
+  const urgent = tasks.some((task) => task.priority === "urgent" || task.priority === "today");
+  const tone = urgent ? colors.amber : colors.blue;
+
+  return (
+    <Card style={[styles.aiCard, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <View style={styles.aiHead}>
+        <View style={styles.aiTitleRow}>
+          <Sparkles size={16} color={tone.fg} />
+          <Text style={[styles.aiTitle, { color: tone.fg }]}>Trợ lý lịch xem</Text>
+        </View>
+        <Text style={[styles.aiCount, { color: tone.fg }]}>{tasks.length} việc</Text>
+      </View>
+      {tasks.slice(0, 3).map((task) => (
+        <View key={task.id} style={styles.aiTask}>
+          <Text style={[styles.aiTaskTitle, { color: tone.fg }]}>{task.title}</Text>
+          <Text style={[styles.aiTaskNote, { color: tone.fg }]}>{task.note}</Text>
+          <Text style={[styles.aiDraft, { color: tone.fg }]}>{task.draft}</Text>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   body: { flex: 1, justifyContent: "center", paddingHorizontal: 16, gap: 8 },
@@ -274,6 +303,25 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: colors.mutedForeground,
   },
+  aiCard: { gap: 12, marginBottom: 16, borderWidth: 1 },
+  aiHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  aiTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiTitle: { fontFamily: font.semibold, fontSize: 14 },
+  aiCount: { fontFamily: font.bold, fontSize: 12 },
+  aiTask: {
+    gap: 4,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderStrong,
+  },
+  aiTaskTitle: { fontFamily: font.semibold, fontSize: 13 },
+  aiTaskNote: { fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
+  aiDraft: { fontFamily: font.regular, fontSize: 12, lineHeight: 18, opacity: 0.9 },
 
   card: {
     backgroundColor: colors.card,

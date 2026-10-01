@@ -8,6 +8,7 @@ import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 import { assessListingDraft } from "../src/lib/listing-draft-assistant.ts";
 import { summarizeReviews } from "../src/lib/review-summary.ts";
 import { renewalAssistant } from "../src/lib/lease-renewal-assistant.ts";
+import { bookingAssistant } from "../src/lib/booking-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -237,6 +238,45 @@ assert.deepEqual(
   [
     ["late", "urgent"],
     ["soon", "soon"],
+  ],
+);
+
+assert.deepEqual(
+  bookingAssistant(
+    [
+      {
+        id: "old",
+        roomTitle: "P.101",
+        name: "Minh",
+        date: "2026-09-30",
+        time: "09:00",
+        note: "Muốn xem sớm",
+        status: "pending",
+      },
+      {
+        id: "today",
+        roomTitle: "P.102",
+        name: "Lan",
+        date: "2026-10-01",
+        time: "15:00",
+        note: null,
+        status: "pending",
+      },
+      {
+        id: "done",
+        roomTitle: "P.103",
+        name: "An",
+        date: "2026-10-01",
+        time: "16:00",
+        note: null,
+        status: "confirmed",
+      },
+    ],
+    "2026-10-01",
+  ).map((task) => [task.id, task.priority]),
+  [
+    ["old", "urgent"],
+    ["today", "today"],
   ],
 );
 
