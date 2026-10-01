@@ -67,10 +67,12 @@ export function RoomCard({ room }: { room: Room }) {
                 {room.description}
               </Text>
             ) : null}
-            <Text style={styles.utilityText} numberOfLines={1}>
-              Điện {formatVNDExact(room.electricityRate)}/kWh · Nước{" "}
-              {formatVNDExact(room.waterRate)}/m³
-            </Text>
+            {room.electricityRate != null && room.waterRate != null ? (
+              <Text style={styles.utilityText} numberOfLines={1}>
+                Điện {formatVNDExact(room.electricityRate)}/kWh · Nước{" "}
+                {formatVNDExact(room.waterRate)}/m³
+              </Text>
+            ) : null}
 
             <View style={styles.footer}>
               <Text style={styles.price}>

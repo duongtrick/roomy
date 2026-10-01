@@ -26,8 +26,8 @@ export type Room = {
   district: string;
   address: string;
   price: number;
-  electricityRate: number;
-  waterRate: number;
+  electricityRate: number | null;
+  waterRate: number | null;
   size: number;
   amenities: string[];
   description: string;
@@ -48,9 +48,15 @@ export type Room = {
   lng: number;
 };
 
-const SELECT = `
+const SELECT_WITH_RATES = `
   id, public_title, public_description, price, electricity_rate, water_rate,
   size, address, area, district,
+  amenities, lat, lng, status, school_name, distance_to_school, verification,
+  owner, images, reviews, created_at
+` as const;
+
+const SELECT_BASE = `
+  id, public_title, public_description, price, size, address, area, district,
   amenities, lat, lng, status, school_name, distance_to_school, verification,
   owner, images, reviews, created_at
 ` as const;
@@ -60,8 +66,8 @@ type CatalogueRow = {
   public_title: string | null;
   public_description: string | null;
   price: number;
-  electricity_rate: number;
-  water_rate: number;
+  electricity_rate?: number;
+  water_rate?: number;
   size: number | null;
   address: string | null;
   area: string | null;
@@ -119,8 +125,8 @@ function toRoom(row: CatalogueRow): Room {
     district: row.district ?? "",
     address: row.address ?? "",
     price: row.price,
-    electricityRate: row.electricity_rate,
-    waterRate: row.water_rate,
+    electricityRate: row.electricity_rate ?? null,
+    waterRate: row.water_rate ?? null,
     size: row.size ?? 0,
     amenities: row.amenities,
     description: row.public_description ?? "",
@@ -143,10 +149,17 @@ function toRoom(row: CatalogueRow): Room {
 
 export async function getRooms(): Promise<Room[]> {
   assertConfigured();
+  const withRates = await supabase
+    .from("public_listings")
+    .select(SELECT_WITH_RATES)
+    .order("created_at", { ascending: false });
+  if (withRates.error?.code !== "42703") {
+    return unwrapAs<CatalogueRow[]>(withRates).map(toRoom);
+  }
   const rows = unwrapAs<CatalogueRow[]>(
     await supabase
       .from("public_listings")
-      .select(SELECT)
+      .select(SELECT_BASE)
       .order("created_at", { ascending: false }),
   );
   return rows.map(toRoom);
@@ -154,10 +167,19 @@ export async function getRooms(): Promise<Room[]> {
 
 export async function getRoom(id: string): Promise<Room | null> {
   assertConfigured();
+  const withRates = await supabase
+    .from("public_listings")
+    .select(SELECT_WITH_RATES)
+    .eq("id", id)
+    .maybeSingle();
+  if (withRates.error?.code !== "42703") {
+    const row = unwrapAs<CatalogueRow | null>(withRates);
+    return row ? toRoom(row) : null;
+  }
   const row = unwrapAs<CatalogueRow | null>(
     await supabase
       .from("public_listings")
-      .select(SELECT)
+      .select(SELECT_BASE)
       .eq("id", id)
       .maybeSingle(),
   );

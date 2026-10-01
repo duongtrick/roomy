@@ -275,18 +275,20 @@ export default function RoomDetailScreen() {
             </Section>
           ) : null}
 
-          <Section title="Chi phí sử dụng">
-            <View style={styles.costGrid}>
-              <View style={styles.costItem}>
-                <Text style={styles.costLabel}>Điện</Text>
-                <Text style={styles.costValue}>{formatVNDExact(room.electricityRate)}/kWh</Text>
+          {room.electricityRate != null && room.waterRate != null ? (
+            <Section title="Chi phí sử dụng">
+              <View style={styles.costGrid}>
+                <View style={styles.costItem}>
+                  <Text style={styles.costLabel}>Điện</Text>
+                  <Text style={styles.costValue}>{formatVNDExact(room.electricityRate)}/kWh</Text>
+                </View>
+                <View style={styles.costItem}>
+                  <Text style={styles.costLabel}>Nước</Text>
+                  <Text style={styles.costValue}>{formatVNDExact(room.waterRate)}/m³</Text>
+                </View>
               </View>
-              <View style={styles.costItem}>
-                <Text style={styles.costLabel}>Nước</Text>
-                <Text style={styles.costValue}>{formatVNDExact(room.waterRate)}/m³</Text>
-              </View>
-            </View>
-          </Section>
+            </Section>
+          ) : null}
 
           {room.amenities.length > 0 ? (
             <Section title="Tiện ích">
