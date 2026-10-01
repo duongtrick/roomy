@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { depositGuidance } from "../src/lib/listing-safety.ts";
+import { assessListingRisk } from "../src/lib/listing-risk.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
@@ -72,6 +73,34 @@ assert.equal(
     hasMapLocation: false,
   }).tone,
   "caution",
+);
+assert.equal(
+  assessListingRisk({
+    title: "Phòng giá rẻ giữ chỗ nhanh",
+    description: "Cọc trước qua Zalo để giữ phòng",
+    price: 1_000_000,
+    size: null,
+    address: null,
+    lat: null,
+    lng: null,
+    verification: "unverified",
+    imageCount: 0,
+  }).level,
+  "high",
+);
+assert.equal(
+  assessListingRisk({
+    title: "Phòng khép kín",
+    description: "Đủ tiện ích, xem phòng trực tiếp.",
+    price: 2_500_000,
+    size: 22,
+    address: "Đường Lương Ngọc Quyến",
+    lat: 21.59,
+    lng: 105.83,
+    verification: "verified",
+    imageCount: 3,
+  }).level,
+  "low",
 );
 
 console.log("self-check passed");

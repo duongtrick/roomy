@@ -6,6 +6,7 @@ import { deleteListing, setListingModeration, setListingVerification } from "@/l
 import { confirm } from "@/lib/confirm";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
+import { assessListingRisk } from "@/lib/listing-risk";
 import { toModeration } from "@/lib/moderation";
 import { toVerification } from "@/lib/verification";
 import { toast } from "../Toast";
@@ -121,6 +122,7 @@ export function QueueTab({ data, reload }: AdminTabProps) {
           {pending.map((row) => (
             <View key={row.id} style={{ gap: 8 }}>
               <AdminListingCard row={row} onOpen={() => setOpenId(row.id)} />
+              <ModerationAssistant row={row} />
               <View style={styles.quickRow}>
                 <Text style={styles.waiting}>Gửi ngày {formatDate(row.created_at)}</Text>
                 <SecondaryButton
@@ -155,6 +157,7 @@ export function QueueTab({ data, reload }: AdminTabProps) {
           {unverified.map((row) => (
             <View key={row.id} style={{ gap: 8 }}>
               <AdminListingCard row={row} onOpen={() => setOpenId(row.id)} />
+              <ModerationAssistant row={row} />
               <View style={styles.quickRow}>
                 <PrimaryButton
                   label="Xoá"
@@ -181,6 +184,43 @@ export function QueueTab({ data, reload }: AdminTabProps) {
   );
 }
 
+function ModerationAssistant({ row }: { row: AdminListingRow }) {
+  const risk = assessListingRisk({
+    title: row.public_title ?? row.title,
+    description: row.public_description,
+    price: row.price,
+    size: row.size,
+    address: row.address,
+    lat: row.lat,
+    lng: row.lng,
+    verification: toVerification(row.verification),
+    imageCount: row.images.length,
+  });
+  const tone =
+    risk.level === "high"
+      ? { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong }
+      : risk.level === "medium"
+        ? colors.amber
+        : colors.emerald;
+
+  return (
+    <View style={[styles.aiBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <View style={styles.aiHead}>
+        <ShieldQuestion size={16} color={tone.fg} />
+        <Text style={[styles.aiTitle, { color: tone.fg }]}>Trợ lý kiểm duyệt · {risk.label}</Text>
+      </View>
+      <Text style={[styles.aiText, { color: tone.fg }]}>
+        {risk.reasons.length ? risk.reasons.join(" · ") : "Không thấy tín hiệu bất thường rõ ràng."}
+      </Text>
+      {risk.checklist.map((item) => (
+        <Text key={item} style={[styles.aiCheck, { color: tone.fg }]}>
+          • {item}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   quickRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   waiting: {
@@ -198,4 +238,14 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   sectionTitle: { fontFamily: font.extrabold, fontSize: 18, color: colors.foreground },
+  aiBox: {
+    gap: 6,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  aiHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiTitle: { fontFamily: font.semibold, fontSize: 13 },
+  aiText: { fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
+  aiCheck: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
 });
