@@ -1,6 +1,9 @@
-import type { StyleProp, ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
+import { MapPin } from "lucide-react-native";
 import type { Room } from "@/lib/api/catalogue";
 import { TN_REGION } from "@/lib/filters";
+import { openDirections } from "@/lib/maps-link";
+import { colors, font, radius } from "@/theme";
 import { LeafletMap, type MapMarker } from "./LeafletMap";
 
 /**
@@ -52,6 +55,22 @@ export function RoomMiniMap({
   lng: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  if (Platform.OS === "web") {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Mở bản đồ"
+        onPress={() => {
+          void openDirections(lat, lng);
+        }}
+        style={[styles.webMiniMap, style]}
+      >
+        <MapPin size={28} color={colors.primary} />
+        <Text style={styles.webMiniText}>Mở vị trí trên Google Maps</Text>
+      </Pressable>
+    );
+  }
+
   return (
     <LeafletMap
       markers={[{ id: "room", lat, lng, title: "" }]}
@@ -62,3 +81,20 @@ export function RoomMiniMap({
     />
   );
 }
+
+const styles = StyleSheet.create({
+  webMiniMap: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: radius["3xl"],
+    backgroundColor: colors.primarySoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+  },
+  webMiniText: {
+    fontFamily: font.semibold,
+    fontSize: 13,
+    color: colors.primaryDeep,
+  },
+});
