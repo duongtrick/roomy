@@ -1,4 +1,5 @@
 import { supabase } from "../supabase";
+import { getBookings, type Booking } from "./bookings";
 import type {
   InvoiceRow,
   LeaseRow,
@@ -295,6 +296,7 @@ export type DashboardSnapshot = {
   leases: LeaseRow[];
   meters: MeterReadingRow[];
   invoices: InvoiceRow[];
+  bookings: Booking[];
 };
 
 /**
@@ -306,12 +308,13 @@ export type DashboardSnapshot = {
  */
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
   assertConfigured();
-  const [listings, tenants, leases, meters, invoices] = await Promise.all([
+  const [listings, tenants, leases, meters, invoices, bookings] = await Promise.all([
     getListings(),
     getTenants(),
     getLeases(),
     getMeterReadings(),
     getInvoices(),
+    getBookings(),
   ]);
-  return { listings, tenants, leases, meters, invoices };
+  return { listings, tenants, leases, meters, invoices, bookings };
 }

@@ -37,5 +37,12 @@ assert.deepEqual(parseRoomyQuery("trọ xác thực dưới 1,5tr gần 500m"), 
   availableOnly: false,
   verifiedOnly: true,
 });
+assert.deepEqual(parseRoomyQuery("Roomy ơi tìm phòng 2tr gần ICTU 1km an toàn chưa ai thuê"), {
+  keyword: "ictu",
+  maxPrice: 2_000_000,
+  maxDistance: 1000,
+  availableOnly: true,
+  verifiedOnly: true,
+});
 
 console.log("self-check passed");

@@ -13,9 +13,10 @@ import { TenantsTab } from "@/components/dashboard/TenantsTab";
 import { LeasesTab } from "@/components/dashboard/LeasesTab";
 import { MetersTab } from "@/components/dashboard/MetersTab";
 import { InvoicesTab } from "@/components/dashboard/InvoicesTab";
+import type { DashboardTabKey } from "@/components/dashboard/types";
 import { colors, font, radius } from "@/theme";
 
-type TabKey = "overview" | "rooms" | "tenants" | "leases" | "meters" | "invoices";
+type TabKey = DashboardTabKey;
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "overview", label: "Tổng quan", icon: LayoutDashboard },
@@ -32,6 +33,7 @@ const EMPTY: DashboardSnapshot = {
   leases: [],
   meters: [],
   invoices: [],
+  bookings: [],
 };
 
 export default function DashboardScreen() {
@@ -58,7 +60,7 @@ export default function DashboardScreen() {
 
   if (authLoading || !user || !isLandlord) return null;
 
-  const tabProps = { data, reload };
+  const tabProps = { data, reload, goToTab: setTab };
 
   return (
     <View style={styles.screen}>

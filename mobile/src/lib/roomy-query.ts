@@ -35,24 +35,31 @@ function parseDistance(value: string, unit: string | undefined): number {
   return Math.round(unit?.startsWith("km") ? n * 1000 : n);
 }
 
+const PRICE = /(\d+(?:[,.]\d+)?)\s*(trieu|tr|m|d|vnd)\b/;
+const DISTANCE = /(\d+(?:[,.]\d+)?)\s*(km|m)\b/;
+
 export function parseRoomyQuery(input: string): RoomyQueryIntent {
   let text = foldVietnamese(input);
-  const maxPriceMatch = text.match(/\b(?:duoi|toi da|<=?)\s*(\d+(?:[,.]\d+)?)\s*(trieu|tr|m|d|vnd)?\b/);
+  const maxPriceMatch =
+    text.match(/\b(?:duoi|toi da|khong qua|tam|khoang|<=?)\s*(\d+(?:[,.]\d+)?)\s*(trieu|tr|m|d|vnd)?\b/) ??
+    text.match(PRICE);
   const maxDistanceMatch = text.match(
-    /\b(?:gan|duoi|toi da|<=?)\s*(\d+(?:[,.]\d+)?)\s*(km|m)\b/,
-  );
+    /\b(?:gan|duoi|toi da|khong qua|<=?)\s*(\d+(?:[,.]\d+)?)\s*(km|m)\b/,
+  ) ?? text.match(DISTANCE);
 
   const maxPrice = maxPriceMatch ? parseMoney(maxPriceMatch[1], maxPriceMatch[2]) : null;
   const maxDistance = maxDistanceMatch
     ? parseDistance(maxDistanceMatch[1], maxDistanceMatch[2])
     : null;
-  const availableOnly = /\b(con trong|phong trong|dang trong|available)\b/.test(text);
-  const verifiedOnly = /\b(xac thuc|uy tin|verified)\b/.test(text);
+  const availableOnly = /\b(con trong|phong trong|dang trong|available|chua ai thue)\b/.test(text);
+  const verifiedOnly = /\b(xac thuc|uy tin|verified|an toan)\b/.test(text);
 
   text = text
-    .replace(/\b(?:gan|duoi|toi da|<=?)\s*\d+(?:[,.]\d+)?\s*(?:trieu|tr|m|d|vnd|km|m)?\b/g, " ")
-    .replace(/\b(con trong|phong trong|dang trong|available|xac thuc|uy tin|verified)\b/g, " ")
-    .replace(/\b(phong|tro|can|tim|muon|gan|cho|minh|toi|em)\b/g, " ")
+    .replace(/\b(?:gan|duoi|toi da|khong qua|tam|khoang|<=?)\s*\d+(?:[,.]\d+)?\s*(?:trieu|tr|m|d|vnd|km|m)?\b/g, " ")
+    .replace(PRICE, " ")
+    .replace(DISTANCE, " ")
+    .replace(/\b(con trong|phong trong|dang trong|available|chua ai thue|xac thuc|uy tin|verified|an toan)\b/g, " ")
+    .replace(/\b(roomy|phong|tro|can|tim|muon|gan|cho|minh|toi|em|oi)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 

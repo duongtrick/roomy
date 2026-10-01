@@ -1,5 +1,7 @@
 import type { DashboardSnapshot } from "@/lib/api/dashboard";
 
+export type DashboardTabKey = "overview" | "rooms" | "tenants" | "leases" | "meters" | "invoices";
+
 /**
  * What every dashboard tab receives.
  *
@@ -11,4 +13,5 @@ import type { DashboardSnapshot } from "@/lib/api/dashboard";
 export type TabProps = {
   data: DashboardSnapshot;
   reload: () => Promise<void>;
+  goToTab?: (tab: DashboardTabKey) => void;
 };
