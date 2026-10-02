@@ -13,6 +13,7 @@ import { affordabilityAdvice } from "../src/lib/affordability-assistant.ts";
 import { compareFavorites } from "../src/lib/favorite-compare.ts";
 import { viewingChecklist } from "../src/lib/viewing-checklist.ts";
 import { aiRoomMatch } from "../src/lib/ai-room-match.ts";
+import { buildBookingNote } from "../src/lib/booking-note-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -405,5 +406,17 @@ assert.deepEqual(
   ).label,
   "Rất hợp",
 );
+
+const bookingNote = buildBookingNote({
+  title: "Phòng thử nghiệm tiêu đề rất dài để kiểm tra giới hạn ghi chú",
+  verification: "unverified",
+  electricityRate: null,
+  waterRate: null,
+  distanceToSchool: null,
+  reviews: [],
+});
+assert.match(bookingNote, /điện, nước/);
+assert.match(bookingNote, /giấy tờ/);
+assert.ok(bookingNote.length <= 280);
 
 console.log("self-check passed");

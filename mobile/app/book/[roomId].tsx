@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { z } from "zod";
-import { Check, LogIn } from "lucide-react-native";
+import { Check, LogIn, Sparkles } from "lucide-react-native";
 import {
   AccentButton,
   Card,
@@ -21,6 +21,7 @@ import { createBooking, statusLabel, TIME_SLOTS, type Booking } from "@/lib/api/
 import { getRoom, type Room } from "@/lib/api/catalogue";
 import { formatDate, today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
+import { buildBookingNote } from "@/lib/booking-note-assistant";
 import { useAsync } from "@/hooks/use-async";
 import { useAuth } from "@/hooks/use-auth";
 import { colors, font, radius } from "@/theme";
@@ -260,6 +261,12 @@ export default function BookScreen() {
         </Field>
 
         <Field label="Ghi chú (tuỳ chọn)" hint={`${form.note.length}/280`} error={errors.note}>
+          <SecondaryButton
+            label="Gợi ý ghi chú"
+            icon={<Sparkles size={16} color={colors.foreground} />}
+            onPress={() => set("note", buildBookingNote(room))}
+            style={{ alignSelf: "flex-start", marginBottom: 8 }}
+          />
           <TextInput
             value={form.note}
             onChangeText={(v) => set("note", v)}
