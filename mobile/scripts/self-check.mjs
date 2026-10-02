@@ -12,6 +12,7 @@ import { bookingAssistant } from "../src/lib/booking-assistant.ts";
 import { affordabilityAdvice } from "../src/lib/affordability-assistant.ts";
 import { compareFavorites } from "../src/lib/favorite-compare.ts";
 import { viewingChecklist } from "../src/lib/viewing-checklist.ts";
+import { aiRoomMatch } from "../src/lib/ai-room-match.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -378,5 +379,31 @@ assert.deepEqual(parseRoomyQuery("em là tân sinh viên ít kinh nghiệm cần
   availableOnly: true,
   verifiedOnly: true,
 });
+
+assert.deepEqual(
+  aiRoomMatch(
+    {
+      status: "available",
+      verification: "verified",
+      price: 1_900_000,
+      distanceToSchool: 350,
+      electricityRate: 3500,
+      waterRate: 25000,
+      reviews: [{ rating: 5 }],
+    },
+    {
+      keyword: "ictu",
+      maxPrice: 2_000_000,
+      maxDistance: 1200,
+      availableOnly: true,
+      verifiedOnly: true,
+      audience: "freshman",
+      priorities: [],
+      note: "",
+      source: "local",
+    },
+  ).label,
+  "Rất hợp",
+);
 
 console.log("self-check passed");

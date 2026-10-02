@@ -25,6 +25,7 @@ import {
 } from "@/components/ui";
 import { getRooms, type Room } from "@/lib/api/catalogue";
 import { askRoomySearch, type AiSearchIntent } from "@/lib/api/ai";
+import { aiRoomMatch } from "@/lib/ai-room-match";
 import {
   ANY_AREA,
   DISTANCE_BANDS,
@@ -340,7 +341,9 @@ export default function HomeScreen() {
             </View>
           </View>
         }
-        renderItem={({ item }) => <RoomCard room={item} />}
+        renderItem={({ item }) => (
+          <RoomCard room={item} match={intent ? aiRoomMatch(item, intent) : null} />
+        )}
         ItemSeparatorComponent={() => <View style={{ height: 20 }} />}
         ListEmptyComponent={
           loading ? (

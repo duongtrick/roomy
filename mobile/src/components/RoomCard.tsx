@@ -1,7 +1,8 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Link } from "expo-router";
-import { BadgeCheck, GraduationCap, Heart, ImageOff } from "lucide-react-native";
+import { BadgeCheck, GraduationCap, Heart, ImageOff, Sparkles } from "lucide-react-native";
 import type { Room } from "@/lib/api/catalogue";
+import type { AiRoomMatch } from "@/lib/ai-room-match";
 import { ROOM_STATUS_COLOR, ROOM_STATUS_LABEL } from "@/lib/dashboard-types";
 import { formatDistance, formatVND, formatVNDExact } from "@/lib/format";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL } from "@/lib/verification";
@@ -9,7 +10,7 @@ import { useFavorites } from "@/hooks/use-favorites";
 import { colors, font, radius, shadow } from "@/theme";
 import { Badge } from "./ui";
 
-export function RoomCard({ room }: { room: Room }) {
+export function RoomCard({ room, match }: { room: Room; match?: AiRoomMatch | null }) {
   const { has, toggle } = useFavorites();
   const fav = has(room.id);
 
@@ -73,6 +74,7 @@ export function RoomCard({ room }: { room: Room }) {
                 {formatVNDExact(room.waterRate)}/m³
               </Text>
             ) : null}
+            {match ? <AiMatchBox match={match} /> : null}
 
             <View style={styles.footer}>
               <Text style={styles.price}>
@@ -97,6 +99,32 @@ export function RoomCard({ room }: { room: Room }) {
           fill={fav ? colors.primary : "transparent"}
         />
       </Pressable>
+    </View>
+  );
+}
+
+function AiMatchBox({ match }: { match: AiRoomMatch }) {
+  const tone =
+    match.score >= 82 ? colors.emerald : match.score >= 65 ? colors.blue : colors.amber;
+
+  return (
+    <View style={[styles.matchBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <View style={styles.matchHead}>
+        <Sparkles size={14} color={tone.fg} />
+        <Text style={[styles.matchTitle, { color: tone.fg }]}>
+          {match.label} · {match.score}/100
+        </Text>
+      </View>
+      {match.reasons.length > 0 ? (
+        <Text style={[styles.matchText, { color: tone.fg }]} numberOfLines={2}>
+          Hợp vì {match.reasons.join(", ")}.
+        </Text>
+      ) : null}
+      {match.cautions.length > 0 ? (
+        <Text style={[styles.matchText, { color: tone.fg }]} numberOfLines={2}>
+          Kiểm tra: {match.cautions.join(", ")}.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -154,6 +182,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.foreground,
   },
+  matchBox: {
+    gap: 4,
+    padding: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  },
+  matchHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  matchTitle: { fontFamily: font.semibold, fontSize: 12 },
+  matchText: { fontFamily: font.regular, fontSize: 11, lineHeight: 16 },
   footer: {
     marginTop: 4,
     flexDirection: "row",
