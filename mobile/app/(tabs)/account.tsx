@@ -11,6 +11,7 @@ import {
   ReceiptText,
   ShieldCheck,
   Sparkles,
+  UsersRound,
   UserRound,
   Wrench,
 } from "lucide-react-native";
@@ -35,6 +36,11 @@ import {
   type TenantCostInput,
   type TenantCostPlan,
 } from "@/lib/tenant-cost-assistant";
+import {
+  roommateProfileAssistant,
+  type RoommateProfile,
+  type RoommateProfileInput,
+} from "@/lib/roommate-profile-assistant";
 import { triageMaintenance, type MaintenanceTriage } from "@/lib/maintenance-triage";
 import { toast } from "@/components/Toast";
 import { colors, font, radius } from "@/theme";
@@ -49,6 +55,16 @@ const EMPTY_COST: TenantCostInput = {
   budget: "",
 };
 
+const EMPTY_ROOMMATE: RoommateProfileInput = {
+  budget: "",
+  wakeTime: "",
+  sleepTime: "",
+  studyStyle: "",
+  cleanliness: "",
+  guestRule: "",
+  dealBreakers: "",
+};
+
 export default function AccountScreen() {
   const { user, isLandlord, isAdmin, loading, configured, signOut } = useAuth();
   const [claiming, setClaiming] = useState(false);
@@ -56,6 +72,8 @@ export default function AccountScreen() {
   const [maintenance, setMaintenance] = useState<MaintenanceTriage | null>(null);
   const [cost, setCost] = useState<TenantCostInput>(EMPTY_COST);
   const [costPlan, setCostPlan] = useState<TenantCostPlan | null>(null);
+  const [roommate, setRoommate] = useState<RoommateProfileInput>(EMPTY_ROOMMATE);
+  const [roommateProfile, setRoommateProfile] = useState<RoommateProfile | null>(null);
 
   const handleSignOut = async () => {
     await signOut();
@@ -254,6 +272,88 @@ export default function AccountScreen() {
 
                 <Card style={{ gap: 12 }}>
                   <View style={styles.cardTitleRow}>
+                    <UsersRound size={16} color={colors.primary} />
+                    <Text style={styles.claimTitle}>Trợ lý tìm bạn ở ghép</Text>
+                  </View>
+                  <Muted size={12} style={{ lineHeight: 18 }}>
+                    Roomy giúp bạn mô tả thói quen ở chung, câu hỏi cần hỏi và ranh giới an toàn.
+                  </Muted>
+                  <View style={styles.inputGrid}>
+                    <View style={styles.inputHalf}>
+                      <Field label="Ngân sách">
+                        <TextInput
+                          value={roommate.budget}
+                          onChangeText={(value) => updateRoommate("budget", digits(value))}
+                          keyboardType="number-pad"
+                          placeholder="VD: 1500000"
+                        />
+                      </Field>
+                    </View>
+                    <View style={styles.inputHalf}>
+                      <Field label="Dậy lúc">
+                        <TextInput
+                          value={roommate.wakeTime}
+                          onChangeText={(value) => updateRoommate("wakeTime", value)}
+                          placeholder="VD: 6h30"
+                        />
+                      </Field>
+                    </View>
+                  </View>
+                  <View style={styles.inputGrid}>
+                    <View style={styles.inputHalf}>
+                      <Field label="Ngủ lúc">
+                        <TextInput
+                          value={roommate.sleepTime}
+                          onChangeText={(value) => updateRoommate("sleepTime", value)}
+                          placeholder="VD: 23h"
+                        />
+                      </Field>
+                    </View>
+                    <View style={styles.inputHalf}>
+                      <Field label="Khách đến">
+                        <TextInput
+                          value={roommate.guestRule}
+                          onChangeText={(value) => updateRoommate("guestRule", value)}
+                          placeholder="Báo trước / hạn chế"
+                        />
+                      </Field>
+                    </View>
+                  </View>
+                  <Field label="Cách học/làm">
+                    <TextInput
+                      value={roommate.studyStyle}
+                      onChangeText={(value) => updateRoommate("studyStyle", value)}
+                      placeholder="VD: cần yên tĩnh buổi tối"
+                    />
+                  </Field>
+                  <Field label="Vệ sinh phòng">
+                    <TextInput
+                      value={roommate.cleanliness}
+                      onChangeText={(value) => updateRoommate("cleanliness", value)}
+                      placeholder="VD: dọn chung chủ nhật"
+                    />
+                  </Field>
+                  <Field label="Điểm không hợp">
+                    <TextInput
+                      value={roommate.dealBreakers}
+                      onChangeText={(value) => updateRoommate("dealBreakers", value)}
+                      placeholder="VD: hút thuốc trong phòng"
+                    />
+                  </Field>
+                  <SecondaryButton
+                    label="Tạo hồ sơ ở ghép"
+                    icon={<Sparkles size={16} color={colors.foreground} />}
+                    onPress={() => {
+                      const result = roommateProfileAssistant(roommate);
+                      setRoommateProfile(result);
+                      if (!result) toast.info("Nhập ít nhất 3 thông tin để Roomy tạo hồ sơ ở ghép.");
+                    }}
+                  />
+                  {roommateProfile ? <RoommateProfileCard result={roommateProfile} /> : null}
+                </Card>
+
+                <Card style={{ gap: 12 }}>
+                  <View style={styles.cardTitleRow}>
                     <Wrench size={16} color={colors.primary} />
                     <Text style={styles.claimTitle}>Trợ lý báo sự cố</Text>
                   </View>
@@ -334,6 +434,11 @@ export default function AccountScreen() {
     setCost((current) => ({ ...current, [key]: value }));
     setCostPlan(null);
   }
+
+  function updateRoommate(key: keyof RoommateProfileInput, value: string) {
+    setRoommate((current) => ({ ...current, [key]: value.slice(0, 120) }));
+    setRoommateProfile(null);
+  }
 }
 
 function digits(value: string) {
@@ -395,6 +500,34 @@ function TenantCostCard({ result }: { result: TenantCostPlan }) {
       </View>
       <View style={styles.messageBox}>
         {result.tips.map((item) => (
+          <Text key={item} style={styles.messageText}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function RoommateProfileCard({ result }: { result: RoommateProfile }) {
+  const tone = result.tone === "ready" ? colors.emerald : colors.amber;
+
+  return (
+    <View style={[styles.maintenanceBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <Text style={[styles.maintenanceTitle, { color: tone.fg }]}>{result.title}</Text>
+      <Text style={[styles.maintenanceText, { color: tone.fg }]}>{result.summary}</Text>
+      <View style={styles.messageBox}>
+        <Text style={styles.messageText}>{result.publicBio}</Text>
+      </View>
+      <View style={{ gap: 6 }}>
+        {result.questions.map((item) => (
+          <Text key={item} style={[styles.maintenanceText, { color: tone.fg }]}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.messageBox}>
+        {result.boundaries.map((item) => (
           <Text key={item} style={styles.messageText}>
             • {item}
           </Text>

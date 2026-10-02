@@ -21,6 +21,7 @@ import { roommateFit } from "../src/lib/roommate-fit.ts";
 import { triageMaintenance } from "../src/lib/maintenance-triage.ts";
 import { tenantCostAssistant } from "../src/lib/tenant-cost-assistant.ts";
 import { moveInPlan } from "../src/lib/move-in-plan.ts";
+import { roommateProfileAssistant } from "../src/lib/roommate-profile-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -709,6 +710,43 @@ assert.equal(
     status: "available",
   }).beforeDeposit.some((item) => /giấy tờ/.test(item)),
   true,
+);
+
+assert.match(
+  roommateProfileAssistant({
+    budget: "1500000",
+    wakeTime: "6h30",
+    sleepTime: "23h",
+    studyStyle: "cần yên tĩnh buổi tối",
+    cleanliness: "dọn chung chủ nhật",
+    guestRule: "báo trước khi có khách",
+    dealBreakers: "",
+  })?.publicBio ?? "",
+  /1\.5tr\/tháng/,
+);
+assert.equal(
+  roommateProfileAssistant({
+    budget: "",
+    wakeTime: "7h",
+    sleepTime: "",
+    studyStyle: "",
+    cleanliness: "",
+    guestRule: "",
+    dealBreakers: "",
+  }),
+  null,
+);
+assert.equal(
+  roommateProfileAssistant({
+    budget: "1200000",
+    wakeTime: "5h",
+    sleepTime: "",
+    studyStyle: "học khuya",
+    cleanliness: "",
+    guestRule: "",
+    dealBreakers: "hút thuốc trong phòng",
+  })?.tone,
+  "careful",
 );
 
 console.log("self-check passed");
