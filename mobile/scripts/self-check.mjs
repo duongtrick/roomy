@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { depositGuidance } from "../src/lib/listing-safety.ts";
 import { assessListingRisk } from "../src/lib/listing-risk.ts";
-import { buildInvoiceReminder } from "../src/lib/invoice-reminder.ts";
+import { buildInvoiceReminder, buildInvoiceReminderDraft } from "../src/lib/invoice-reminder.ts";
 import { answerRoomQuestion } from "../src/lib/room-qa.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 import { assessListingDraft } from "../src/lib/listing-draft-assistant.ts";
@@ -163,6 +163,17 @@ assert.match(
     overdue: true,
   }),
   /Minh Anh.*P\.101.*3\.450\.000đ.*10\/10\/2026/,
+);
+assert.equal(
+  buildInvoiceReminderDraft({
+    tenantName: "Minh Anh",
+    roomTitle: "P.101",
+    period: "2026-10",
+    totalAmount: 3_450_000,
+    dueDate: "2026-10-10",
+    overdue: true,
+  }).tone,
+  "urgent",
 );
 
 assert.equal(

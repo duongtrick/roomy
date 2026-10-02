@@ -5,7 +5,7 @@ import { createInvoice, deleteInvoice, setInvoicePaid } from "@/lib/api/dashboar
 import { confirm } from "@/lib/confirm";
 import { formatDate, formatVND, today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
-import { buildInvoiceReminder } from "@/lib/invoice-reminder";
+import { buildInvoiceReminderDraft, type InvoiceReminderDraft } from "@/lib/invoice-reminder";
 import {
   currentPeriod,
   type Invoice,
@@ -62,16 +62,17 @@ export function InvoicesTab({ data, reload }: TabProps) {
   const openReminder = (inv: Invoice) => {
     const listing = room(inv.listing_id);
     const renter = tenant(inv.tenant_id);
+    const draft = buildInvoiceReminderDraft({
+      tenantName: renter?.full_name ?? null,
+      roomTitle: listing?.title ?? "—",
+      period: inv.period,
+      totalAmount: inv.total_amount,
+      dueDate: inv.due_date,
+      overdue: Boolean(inv.due_date && inv.due_date < today()),
+    });
     setReminder({
       phone: renter?.phone ?? null,
-      message: buildInvoiceReminder({
-        tenantName: renter?.full_name ?? null,
-        roomTitle: listing?.title ?? "—",
-        period: inv.period,
-        totalAmount: inv.total_amount,
-        dueDate: inv.due_date,
-        overdue: Boolean(inv.due_date && inv.due_date < today()),
-      }),
+      draft,
     });
   };
 
@@ -196,7 +197,7 @@ export function InvoicesTab({ data, reload }: TabProps) {
 
 type ReminderDraft = {
   phone: string | null;
-  message: string;
+  draft: InvoiceReminderDraft;
 };
 
 function ReminderSheet({
@@ -211,9 +212,13 @@ function ReminderSheet({
       toast.info("Người thuê chưa có số điện thoại.");
       return;
     }
-    const url = `sms:${reminder.phone}?body=${encodeURIComponent(reminder.message)}`;
+    const url = `sms:${reminder.phone}?body=${encodeURIComponent(reminder.draft.message)}`;
     Linking.openURL(url).catch(() => toast.error("Không mở được ứng dụng nhắn tin."));
   };
+  const tone =
+    reminder?.draft.tone === "urgent"
+      ? { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong }
+      : colors.blue;
 
   return (
     <Sheet
@@ -232,8 +237,16 @@ function ReminderSheet({
         </View>
       }
     >
-      <View style={styles.reminderBox}>
-        <Text style={styles.reminderText}>{reminder?.message}</Text>
+      <View style={[styles.reminderBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+        <Text style={[styles.reminderTitle, { color: tone.fg }]}>{reminder?.draft.title}</Text>
+        <Text style={[styles.reminderText, { color: tone.fg }]}>{reminder?.draft.message}</Text>
+        <View style={{ gap: 6 }}>
+          {reminder?.draft.checklist.map((item) => (
+            <Text key={item} style={[styles.reminderHint, { color: tone.fg }]}>
+              • {item}
+            </Text>
+          ))}
+        </View>
       </View>
       <Muted size={12}>
         Tin nhắn được soạn từ dữ liệu hoá đơn. Chủ trọ kiểm tra lại nội dung trước khi gửi.
@@ -450,15 +463,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.tint50,
     padding: 14,
+    gap: 10,
+  },
+  reminderTitle: {
+    fontFamily: font.semibold,
+    fontSize: 14,
   },
   reminderText: {
-    fontFamily: font.regular,
-    fontSize: 14,
-    lineHeight: 22,
-    color: colors.foreground,
+    fontFamily: font.medium,
+    fontSize: 13,
+    lineHeight: 20,
   },
+  reminderHint: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
 
   warning: {
     borderRadius: radius.lg,
