@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { colors, radius } from "@/theme";
+import { colors, font, radius } from "@/theme";
 
 /**
  * Bản đồ nền cho toàn app, chạy bằng Leaflet trong WebView.
@@ -203,6 +203,15 @@ export function LeafletMap({
   interactive = true,
   style,
 }: Props) {
+  if (Platform.OS === "web") {
+    return (
+      <View style={[styles.wrap, styles.webFallback, style]}>
+        <Text style={styles.webFallbackText}>Bản đồ tương tác hỗ trợ trên app di động.</Text>
+        <Text style={styles.webFallbackHint}>Trên web, chọn phòng ở danh sách bên dưới để xem chi tiết và mở Google Maps.</Text>
+      </View>
+    );
+  }
+
   const webRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
 
@@ -311,6 +320,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tint100,
   },
   web: { flex: 1, backgroundColor: "transparent" },
+  webFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  webFallbackText: {
+    fontFamily: font.bold,
+    fontSize: 16,
+    color: colors.primaryDeep,
+    textAlign: "center",
+  },
+  webFallbackHint: {
+    marginTop: 8,
+    maxWidth: 320,
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.mutedForeground,
+    textAlign: "center",
+  },
   loading: {
     position: "absolute",
     top: 0,

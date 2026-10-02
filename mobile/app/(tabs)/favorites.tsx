@@ -1,16 +1,17 @@
 import { useMemo } from "react";
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { Heart, LogIn } from "lucide-react-native";
+import { Heart, LogIn, Sparkles } from "lucide-react-native";
 import { BrandHeader, PageHeading } from "@/components/ScreenHeader";
 import { RoomCard } from "@/components/RoomCard";
 import { Loading, LoadError } from "@/components/AsyncState";
-import { AccentButton, EmptyState } from "@/components/ui";
+import { AccentButton, Card, EmptyState } from "@/components/ui";
 import { getRooms, type Room } from "@/lib/api/catalogue";
+import { compareFavorites, type FavoriteCompareResult } from "@/lib/favorite-compare";
 import { useAsync } from "@/hooks/use-async";
 import { useAuth } from "@/hooks/use-auth";
 import { useFavorites } from "@/hooks/use-favorites";
-import { colors } from "@/theme";
+import { colors, font } from "@/theme";
 
 const NO_ROOMS: Room[] = [];
 
@@ -20,6 +21,7 @@ export default function FavoritesScreen() {
   const { data: rooms, loading, error, reload } = useAsync(getRooms, NO_ROOMS);
 
   const saved = useMemo(() => rooms.filter((r) => ids.includes(r.id)), [rooms, ids]);
+  const comparison = useMemo(() => compareFavorites(saved), [saved]);
 
   // Favourites live on the account now, so there is nothing to show — and
   // nothing to fetch — until someone signs in.
@@ -80,6 +82,7 @@ export default function FavoritesScreen() {
                 <LoadError message={error} onRetry={() => void reload()} />
               </View>
             ) : null}
+            {comparison ? <FavoriteCompareCard comparison={comparison} /> : null}
           </>
         }
         renderItem={({ item }) => <RoomCard room={item} />}
@@ -101,8 +104,64 @@ export default function FavoritesScreen() {
   );
 }
 
+function FavoriteCompareCard({ comparison }: { comparison: FavoriteCompareResult }) {
+  return (
+    <Card style={styles.compareCard}>
+      <View style={styles.compareHead}>
+        <View style={styles.compareTitleRow}>
+          <Sparkles size={16} color={colors.primary} />
+          <Text style={styles.compareTitle}>{comparison.title}</Text>
+        </View>
+        <Text style={styles.compareSummary}>{comparison.summary}</Text>
+      </View>
+      <View style={{ gap: 6 }}>
+        {comparison.picks.map((item) => (
+          <Text key={item} style={styles.compareText}>• {item}</Text>
+        ))}
+      </View>
+      {comparison.cautions.length > 0 ? (
+        <View style={styles.cautionBox}>
+          {comparison.cautions.map((item) => (
+            <Text key={item} style={styles.cautionText}>• {item}</Text>
+          ))}
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   body: { flex: 1, justifyContent: "center", paddingHorizontal: 16, gap: 8 },
   list: { paddingHorizontal: 16, paddingBottom: 40 },
+  compareCard: { gap: 12, marginBottom: 16, backgroundColor: colors.tint50 },
+  compareHead: { gap: 4 },
+  compareTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  compareTitle: { fontFamily: font.semibold, fontSize: 14, color: colors.foreground },
+  compareSummary: {
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.mutedForeground,
+  },
+  compareText: {
+    fontFamily: font.medium,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.foreground,
+  },
+  cautionBox: {
+    gap: 4,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: colors.amber.bg,
+    borderWidth: 1,
+    borderColor: colors.amber.border,
+  },
+  cautionText: {
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.amber.fg,
+  },
 });

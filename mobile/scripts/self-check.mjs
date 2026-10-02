@@ -10,6 +10,7 @@ import { summarizeReviews } from "../src/lib/review-summary.ts";
 import { renewalAssistant } from "../src/lib/lease-renewal-assistant.ts";
 import { bookingAssistant } from "../src/lib/booking-assistant.ts";
 import { affordabilityAdvice } from "../src/lib/affordability-assistant.ts";
+import { compareFavorites } from "../src/lib/favorite-compare.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -285,5 +286,61 @@ assert.equal(affordabilityAdvice(2_000_000, "3000000")?.level, "safe");
 assert.equal(affordabilityAdvice(2_900_000, "3000000")?.level, "careful");
 assert.equal(affordabilityAdvice(3_500_000, "3000000")?.level, "over");
 assert.equal(affordabilityAdvice(2_000_000, ""), null);
+
+assert.deepEqual(
+  compareFavorites([
+    {
+      id: "a",
+      title: "Phòng A",
+      price: 2_500_000,
+      distanceToSchool: 900,
+      verification: "verified",
+      electricityRate: 3500,
+      waterRate: 25000,
+      reviews: [{ rating: 5 }],
+    },
+    {
+      id: "b",
+      title: "Phòng B",
+      price: 1_800_000,
+      distanceToSchool: 400,
+      verification: "unverified",
+      electricityRate: null,
+      waterRate: null,
+      reviews: [],
+    },
+  ])?.picks,
+  [
+    "Rẻ nhất: Phòng B (1.8tr/tháng).",
+    "Gần trường nhất: Phòng B (400 m).",
+    "Đáng tin hơn: Phòng A (đã xác thực).",
+  ],
+);
+
+assert.equal(
+  compareFavorites([
+    {
+      id: "a",
+      title: "Phòng ít review",
+      price: 2_000_000,
+      distanceToSchool: null,
+      verification: "unverified",
+      electricityRate: 3500,
+      waterRate: 25000,
+      reviews: [{ rating: 4 }],
+    },
+    {
+      id: "b",
+      title: "Phòng nhiều review",
+      price: 2_200_000,
+      distanceToSchool: null,
+      verification: "unverified",
+      electricityRate: 3500,
+      waterRate: 25000,
+      reviews: [{ rating: 5 }, { rating: 5 }],
+    },
+  ])?.picks.find((item) => item.startsWith("Đáng tin hơn:")),
+  "Đáng tin hơn: Phòng nhiều review (5/5 từ 2 đánh giá).",
+);
 
 console.log("self-check passed");
