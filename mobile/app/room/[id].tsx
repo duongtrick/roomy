@@ -42,6 +42,7 @@ import { hasCoords, openDirections } from "@/lib/maps-link";
 import { answerRoomQuestion, type RoomAnswer } from "@/lib/room-qa";
 import { summarizeReviews } from "@/lib/review-summary";
 import { affordabilityAdvice } from "@/lib/affordability-assistant";
+import { moveInPlan, type MoveInPlan } from "@/lib/move-in-plan";
 import { viewingChecklist, type ViewingProfile } from "@/lib/viewing-checklist";
 import { roommateFit } from "@/lib/roommate-fit";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
@@ -190,6 +191,17 @@ export default function RoomDetailScreen() {
         ? colors.amber
         : { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong };
   const reviewSummary = summarizeReviews(room.reviews);
+  const budgetNumber = monthlyBudget ? Number(monthlyBudget) : null;
+  const movePlan = moveInPlan({
+    price: room.price,
+    estimatedTotal,
+    budget: budgetNumber,
+    verification: room.verification,
+    reviewCount: room.reviews.length,
+    hasUtilityRates: room.electricityRate != null && room.waterRate != null,
+    hasMapLocation: hasCoords(room.lat, room.lng),
+    status: room.status,
+  });
   const checklist = viewingChecklist({
     verification: room.verification,
     reviewCount: room.reviews.length,
@@ -660,6 +672,10 @@ export default function RoomDetailScreen() {
             </Section>
           ) : null}
 
+          <Section title="Trợ lý tháng đầu vào ở">
+            <MoveInPlanCard plan={movePlan} />
+          </Section>
+
           {room.amenities.length > 0 ? (
             <Section title="Tiện ích">
               <View style={styles.amenityGrid}>
@@ -799,6 +815,43 @@ function AffordabilityCard({
     <View style={[styles.affordabilityBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
       <Text style={[styles.affordabilityTitle, { color: tone.fg }]}>{advice.title}</Text>
       <Text style={[styles.affordabilityText, { color: tone.fg }]}>{advice.note}</Text>
+    </View>
+  );
+}
+
+function MoveInPlanCard({ plan }: { plan: MoveInPlan }) {
+  const tone =
+    plan.tone === "ready"
+      ? colors.emerald
+      : plan.tone === "careful"
+        ? colors.amber
+        : { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong };
+
+  return (
+    <Card style={[styles.moveInCard, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <View style={styles.checklistHead}>
+        <Sparkles size={18} color={tone.fg} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.checklistTitle, { color: tone.fg }]}>{plan.title}</Text>
+          <Text style={[styles.checklistFocus, { color: tone.fg }]}>{plan.summary}</Text>
+        </View>
+      </View>
+      <MoveInGroup title="Trước khi cọc" items={plan.beforeDeposit} color={tone.fg} />
+      <MoveInGroup title="Ngày nhận phòng" items={plan.firstDay} color={tone.fg} />
+      <MoveInGroup title="Tháng đầu" items={plan.firstMonth} color={tone.fg} />
+    </Card>
+  );
+}
+
+function MoveInGroup({ title, items, color }: { title: string; items: string[]; color: string }) {
+  return (
+    <View style={styles.checklistGroup}>
+      <Text style={[styles.checklistGroupTitle, { color }]}>{title}</Text>
+      {items.map((item) => (
+        <Text key={item} style={[styles.checklistText, { color }]}>
+          • {item}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -1087,6 +1140,7 @@ const styles = StyleSheet.create({
   depositCheckText: { flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
   checklistCard: { gap: 12 },
   roommateCard: { gap: 12 },
+  moveInCard: { gap: 12 },
   roommateNote: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
   viewingTabs: { flexDirection: "row", gap: 8 },
   viewingTab: {

@@ -20,6 +20,7 @@ import { buildBookingNote } from "../src/lib/booking-note-assistant.ts";
 import { roommateFit } from "../src/lib/roommate-fit.ts";
 import { triageMaintenance } from "../src/lib/maintenance-triage.ts";
 import { tenantCostAssistant } from "../src/lib/tenant-cost-assistant.ts";
+import { moveInPlan } from "../src/lib/move-in-plan.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -669,5 +670,45 @@ assert.equal(
   "over",
 );
 assert.equal(tenantCostAssistant({ rent: "", electricityKwh: "", electricityRate: "", waterM3: "", waterRate: "", otherFee: "", budget: "" }), null);
+
+assert.equal(
+  moveInPlan({
+    price: 1_900_000,
+    estimatedTotal: 2_280_000,
+    budget: 3_000_000,
+    verification: "verified",
+    reviewCount: 2,
+    hasUtilityRates: true,
+    hasMapLocation: true,
+    status: "available",
+  }).tone,
+  "ready",
+);
+assert.equal(
+  moveInPlan({
+    price: 3_000_000,
+    estimatedTotal: 3_500_000,
+    budget: 3_200_000,
+    verification: "verified",
+    reviewCount: 1,
+    hasUtilityRates: true,
+    hasMapLocation: true,
+    status: "available",
+  }).tone,
+  "blocked",
+);
+assert.equal(
+  moveInPlan({
+    price: 1_500_000,
+    estimatedTotal: null,
+    budget: null,
+    verification: "unverified",
+    reviewCount: 0,
+    hasUtilityRates: false,
+    hasMapLocation: false,
+    status: "available",
+  }).beforeDeposit.some((item) => /giấy tờ/.test(item)),
+  true,
+);
 
 console.log("self-check passed");
