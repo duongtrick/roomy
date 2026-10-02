@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { depositGuidance } from "../src/lib/listing-safety.ts";
 import { assessListingRisk } from "../src/lib/listing-risk.ts";
 import { buildInvoiceReminder, buildInvoiceReminderDraft } from "../src/lib/invoice-reminder.ts";
+import { analyzeInvoice } from "../src/lib/invoice-analysis.ts";
 import { answerRoomQuestion } from "../src/lib/room-qa.ts";
 import { parseRoomyQuery } from "../src/lib/roomy-query.ts";
 import { assessListingDraft } from "../src/lib/listing-draft-assistant.ts";
@@ -174,6 +175,37 @@ assert.equal(
     overdue: true,
   }).tone,
   "urgent",
+);
+assert.equal(
+  analyzeInvoice(
+    {
+      rentAmount: 2_000_000,
+      electricityKwh: 120,
+      electricityAmount: 420_000,
+      waterM3: 8,
+      waterAmount: 200_000,
+      otherAmount: 0,
+      totalAmount: 2_620_000,
+      dueDate: "2026-09-10",
+      status: "unpaid",
+    },
+    new Date("2026-10-01T00:00:00"),
+  ).tone,
+  "urgent",
+);
+assert.equal(
+  analyzeInvoice({
+    rentAmount: 2_000_000,
+    electricityKwh: 80,
+    electricityAmount: 280_000,
+    waterM3: 5,
+    waterAmount: 125_000,
+    otherAmount: 350_000,
+    totalAmount: 2_755_000,
+    dueDate: null,
+    status: "paid",
+  }).insights.some((item) => /Phí khác/.test(item)),
+  true,
 );
 
 assert.equal(

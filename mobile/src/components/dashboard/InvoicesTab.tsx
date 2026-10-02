@@ -3,8 +3,9 @@ import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { MessageCircle, Plus, Receipt, Trash2 } from "lucide-react-native";
 import { createInvoice, deleteInvoice, setInvoicePaid } from "@/lib/api/dashboard";
 import { confirm } from "@/lib/confirm";
-import { formatDate, formatVND, today } from "@/lib/format";
+import { formatDate, formatVND, formatVNDExact, today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
+import { analyzeInvoice, type InvoiceAnalysis } from "@/lib/invoice-analysis";
 import { buildInvoiceReminderDraft, type InvoiceReminderDraft } from "@/lib/invoice-reminder";
 import {
   currentPeriod,
@@ -36,6 +37,7 @@ export function InvoicesTab({ data, reload }: TabProps) {
   const { invoices, listings, tenants, leases, meters } = data;
   const [showForm, setShowForm] = useState(false);
   const [reminder, setReminder] = useState<ReminderDraft | null>(null);
+  const [analysis, setAnalysis] = useState<InvoiceDetail | null>(null);
 
   const markPaid = async (inv: Invoice) => {
     try {
@@ -73,6 +75,24 @@ export function InvoicesTab({ data, reload }: TabProps) {
     setReminder({
       phone: renter?.phone ?? null,
       draft,
+    });
+  };
+  const openAnalysis = (inv: Invoice) => {
+    setAnalysis({
+      invoice: inv,
+      roomTitle: room(inv.listing_id)?.title ?? "—",
+      tenantName: tenant(inv.tenant_id)?.full_name ?? "—",
+      analysis: analyzeInvoice({
+        rentAmount: inv.rent_amount,
+        electricityKwh: inv.electricity_kwh,
+        electricityAmount: inv.electricity_amount,
+        waterM3: inv.water_m3,
+        waterAmount: inv.water_amount,
+        otherAmount: inv.other_amount,
+        totalAmount: inv.total_amount,
+        dueDate: inv.due_date,
+        status: inv.status,
+      }),
     });
   };
 
@@ -159,6 +179,12 @@ export function InvoicesTab({ data, reload }: TabProps) {
                 ]}
                 actions={
                   <View style={styles.actionRow}>
+                    <IconButton
+                      accessibilityLabel="Xem chi tiết hoá đơn"
+                      onPress={() => openAnalysis(inv)}
+                    >
+                      <Receipt size={16} color={colors.primary} />
+                    </IconButton>
                     {!paid ? (
                       <IconButton
                         accessibilityLabel="Soạn tin nhắc thanh toán"
@@ -191,6 +217,7 @@ export function InvoicesTab({ data, reload }: TabProps) {
         }}
       />
       <ReminderSheet reminder={reminder} onClose={() => setReminder(null)} />
+      <InvoiceDetailSheet detail={analysis} onClose={() => setAnalysis(null)} />
     </View>
   );
 }
@@ -199,6 +226,77 @@ type ReminderDraft = {
   phone: string | null;
   draft: InvoiceReminderDraft;
 };
+
+type InvoiceDetail = {
+  invoice: Invoice;
+  roomTitle: string;
+  tenantName: string;
+  analysis: InvoiceAnalysis;
+};
+
+function InvoiceDetailSheet({
+  detail,
+  onClose,
+}: {
+  detail: InvoiceDetail | null;
+  onClose: () => void;
+}) {
+  const tone =
+    detail?.analysis.tone === "urgent"
+      ? { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong }
+      : detail?.analysis.tone === "careful"
+        ? colors.amber
+        : colors.blue;
+
+  return (
+    <Sheet open={Boolean(detail)} title="Chi tiết hoá đơn" onClose={onClose}>
+      {detail ? (
+        <>
+          <View style={[styles.analysisHero, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+            <Text style={[styles.analysisTitle, { color: tone.fg }]}>{detail.analysis.title}</Text>
+            <Text style={[styles.analysisText, { color: tone.fg }]}>{detail.analysis.summary}</Text>
+            <Muted size={12}>
+              {detail.roomTitle} · Kỳ {detail.invoice.period} · {detail.tenantName}
+            </Muted>
+          </View>
+
+          <View style={styles.analysisLines}>
+            {detail.analysis.lines.map((line) => (
+              <View key={line.label} style={styles.analysisLine}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.analysisLineTitle}>{line.label}</Text>
+                  <Muted size={12}>{line.note}</Muted>
+                </View>
+                <View style={{ alignItems: "flex-end", gap: 4 }}>
+                  <Text style={styles.analysisAmount}>{formatVNDExact(line.amount)}</Text>
+                  <Text style={styles.analysisPercent}>{line.percent}%</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.analysisBox}>
+            <Text style={styles.analysisSectionTitle}>AI phân tích</Text>
+            {detail.analysis.insights.map((item) => (
+              <Text key={item} style={styles.analysisBullet}>
+                • {item}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.analysisBox}>
+            <Text style={styles.analysisSectionTitle}>Nên đối chiếu</Text>
+            {detail.analysis.questions.map((item) => (
+              <Text key={item} style={styles.analysisBullet}>
+                • {item}
+              </Text>
+            ))}
+          </View>
+        </>
+      ) : null}
+    </Sheet>
+  );
+}
 
 function ReminderSheet({
   reminder,
@@ -459,6 +557,57 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   total: { fontFamily: font.bold, fontSize: 14, color: colors.foreground },
+  analysisHero: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+  },
+  analysisTitle: { fontFamily: font.semibold, fontSize: 15 },
+  analysisText: { fontFamily: font.medium, fontSize: 13, lineHeight: 20 },
+  analysisLines: {
+    borderRadius: radius["2xl"],
+    backgroundColor: colors.tint50,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  analysisLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  analysisLineTitle: {
+    fontFamily: font.semibold,
+    fontSize: 13,
+    color: colors.foreground,
+  },
+  analysisAmount: { fontFamily: font.bold, fontSize: 13, color: colors.foreground },
+  analysisPercent: { fontFamily: font.medium, fontSize: 11, color: colors.mutedForeground },
+  analysisBox: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    padding: 14,
+    gap: 8,
+  },
+  analysisSectionTitle: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.mutedForeground,
+  },
+  analysisBullet: {
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.foreground,
+  },
   reminderBox: {
     borderRadius: radius.lg,
     borderWidth: 1,
