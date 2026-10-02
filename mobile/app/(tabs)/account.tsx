@@ -155,7 +155,7 @@ export default function AccountScreen() {
               />
             ) : null}
 
-            {isAdmin ? null : (
+            {isAdmin || isLandlord ? null : (
               <>
                 <Card style={{ gap: 12 }}>
                   <View style={styles.cardTitleRow}>
