@@ -19,6 +19,7 @@ import { today } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 import { confirm } from "@/lib/confirm";
 import { bookingAssistant, type BookingAssistantTask } from "@/lib/booking-assistant";
+import { tenantTourAssistant, type TenantTourPlan } from "@/lib/tenant-tour-assistant";
 import { useAsync } from "@/hooks/use-async";
 import { useAuth } from "@/hooks/use-auth";
 import { colors, font, radius } from "@/theme";
@@ -37,6 +38,7 @@ export default function BookingsScreen() {
   const todayIso = today();
   const pending = bookings.filter((b) => b.status === "pending");
   const bookingTasks = bookingAssistant(bookings, todayIso);
+  const tenantTourPlan = tenantTourAssistant(bookings, todayIso);
   const upcomingConfirmed = bookings
     .filter((b) => b.status === "confirmed" && b.date >= todayIso)
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
@@ -145,6 +147,7 @@ export default function BookingsScreen() {
             {isLandlord && bookingTasks.length > 0 ? (
               <BookingAssistantCard tasks={bookingTasks} />
             ) : null}
+            {!isLandlord && tenantTourPlan ? <TenantTourCard plan={tenantTourPlan} /> : null}
             {error ? (
               <View style={{ paddingBottom: 16 }}>
                 <LoadError message={error} onRetry={() => void reload()} />
@@ -260,6 +263,48 @@ export default function BookingsScreen() {
   );
 }
 
+function TenantTourCard({ plan }: { plan: TenantTourPlan }) {
+  const tone =
+    plan.tone === "urgent"
+      ? { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong }
+      : plan.tone === "careful"
+        ? colors.amber
+        : colors.blue;
+
+  return (
+    <Card style={[styles.aiCard, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <View style={styles.aiHead}>
+        <View style={styles.aiTitleRow}>
+          <Sparkles size={16} color={tone.fg} />
+          <Text style={[styles.aiTitle, { color: tone.fg }]}>{plan.title}</Text>
+        </View>
+      </View>
+      <Text style={[styles.aiTaskNote, { color: tone.fg }]}>{plan.summary}</Text>
+      <View style={{ gap: 6 }}>
+        {plan.actions.map((item) => (
+          <Text key={item} style={[styles.aiTaskNote, { color: tone.fg }]}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.tenantQuestionBox}>
+        <Text style={styles.tenantQuestionTitle}>Hỏi khi đi xem</Text>
+        {plan.questions.map((item) => (
+          <Text key={item} style={styles.tenantQuestionText}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      {plan.messageDraft ? (
+        <View style={styles.tenantDraftBox}>
+          <Text style={styles.tenantQuestionTitle}>Tin nhắn gợi ý</Text>
+          <Text style={styles.tenantDraft}>{plan.messageDraft}</Text>
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
 function BookingAssistantCard({ tasks }: { tasks: BookingAssistantTask[] }) {
   const urgent = tasks.some((task) => task.priority === "urgent" || task.priority === "today");
   const tone = urgent ? colors.amber : colors.blue;
@@ -322,6 +367,39 @@ const styles = StyleSheet.create({
   aiTaskTitle: { fontFamily: font.semibold, fontSize: 13 },
   aiTaskNote: { fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
   aiDraft: { fontFamily: font.regular, fontSize: 12, lineHeight: 18, opacity: 0.9 },
+  tenantQuestionBox: {
+    gap: 6,
+    padding: 10,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tenantQuestionTitle: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+    color: colors.mutedForeground,
+  },
+  tenantQuestionText: {
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.foreground,
+  },
+  tenantDraftBox: {
+    gap: 6,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderStrong,
+  },
+  tenantDraft: {
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.foreground,
+  },
 
   card: {
     backgroundColor: colors.card,

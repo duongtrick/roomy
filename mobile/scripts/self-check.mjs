@@ -13,6 +13,7 @@ import { bookingAssistant } from "../src/lib/booking-assistant.ts";
 import { affordabilityAdvice } from "../src/lib/affordability-assistant.ts";
 import { compareFavorites } from "../src/lib/favorite-compare.ts";
 import { tenantDecisionAssistant } from "../src/lib/tenant-decision-assistant.ts";
+import { tenantTourAssistant } from "../src/lib/tenant-tour-assistant.ts";
 import { viewingChecklist } from "../src/lib/viewing-checklist.ts";
 import { aiRoomMatch } from "../src/lib/ai-room-match.ts";
 import { buildBookingNote } from "../src/lib/booking-note-assistant.ts";
@@ -329,6 +330,38 @@ assert.deepEqual(
     ["old", "urgent"],
     ["today", "today"],
   ],
+);
+assert.equal(
+  tenantTourAssistant(
+    [
+      {
+        id: "late",
+        roomTitle: "P.101",
+        date: "2026-09-30",
+        time: "09:00",
+        note: null,
+        status: "pending",
+      },
+    ],
+    "2026-10-01",
+  )?.tone,
+  "urgent",
+);
+assert.match(
+  tenantTourAssistant(
+    [
+      {
+        id: "today",
+        roomTitle: "P.102",
+        date: "2026-10-01",
+        time: "15:00",
+        note: null,
+        status: "confirmed",
+      },
+    ],
+    "2026-10-01",
+  )?.messageDraft ?? "",
+  /địa chỉ\/điểm hẹn/,
 );
 
 assert.equal(affordabilityAdvice(2_000_000, "3000000")?.level, "safe");
