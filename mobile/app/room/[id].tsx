@@ -16,6 +16,7 @@ import {
   Phone,
   Send,
   ShieldQuestion,
+  Sparkles,
   Star,
 } from "lucide-react-native";
 import { RoomMiniMap } from "@/components/RoomsMap";
@@ -41,6 +42,7 @@ import { hasCoords, openDirections } from "@/lib/maps-link";
 import { answerRoomQuestion, type RoomAnswer } from "@/lib/room-qa";
 import { summarizeReviews } from "@/lib/review-summary";
 import { affordabilityAdvice } from "@/lib/affordability-assistant";
+import { viewingChecklist } from "@/lib/viewing-checklist";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -181,6 +183,15 @@ export default function RoomDetailScreen() {
         ? colors.amber
         : { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong };
   const reviewSummary = summarizeReviews(room.reviews);
+  const checklist = viewingChecklist({
+    verification: room.verification,
+    reviewCount: room.reviews.length,
+    hasUtilityRates: room.electricityRate != null && room.waterRate != null,
+    hasMapLocation: hasCoords(room.lat, room.lng),
+    distanceToSchool: room.distanceToSchool,
+    status: room.status,
+  });
+  const checklistTone = checklist.priority === "careful" ? colors.amber : colors.blue;
   const askRoom = (value = question) => {
     const next = value.trim();
     if (!next) return;
@@ -443,6 +454,32 @@ export default function RoomDetailScreen() {
                     <Check size={14} color={depositTone.fg} />
                     <Text style={[styles.depositCheckText, { color: depositTone.fg }]}>
                       {check}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Card>
+          </Section>
+
+          <Section title="Trợ lý đi xem phòng">
+            <Card
+              style={[
+                styles.checklistCard,
+                { backgroundColor: checklistTone.bg, borderColor: checklistTone.border },
+              ]}
+            >
+              <View style={styles.checklistHead}>
+                <Sparkles size={18} color={checklistTone.fg} />
+                <Text style={[styles.checklistTitle, { color: checklistTone.fg }]}>
+                  {checklist.title}
+                </Text>
+              </View>
+              <View style={{ gap: 8 }}>
+                {checklist.items.map((item) => (
+                  <View key={item} style={styles.checklistItem}>
+                    <Check size={14} color={checklistTone.fg} />
+                    <Text style={[styles.checklistText, { color: checklistTone.fg }]}>
+                      {item}
                     </Text>
                   </View>
                 ))}
@@ -945,6 +982,11 @@ const styles = StyleSheet.create({
   depositChecks: { gap: 8 },
   depositCheck: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   depositCheckText: { flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
+  checklistCard: { gap: 12 },
+  checklistHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  checklistTitle: { flex: 1, fontFamily: font.semibold, fontSize: 15 },
+  checklistItem: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  checklistText: { flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
   qaCard: { gap: 12 },
   qaInputRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   qaButton: {

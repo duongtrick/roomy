@@ -11,6 +11,7 @@ import { renewalAssistant } from "../src/lib/lease-renewal-assistant.ts";
 import { bookingAssistant } from "../src/lib/booking-assistant.ts";
 import { affordabilityAdvice } from "../src/lib/affordability-assistant.ts";
 import { compareFavorites } from "../src/lib/favorite-compare.ts";
+import { viewingChecklist } from "../src/lib/viewing-checklist.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -341,6 +342,33 @@ assert.equal(
     },
   ])?.picks.find((item) => item.startsWith("Đáng tin hơn:")),
   "Đáng tin hơn: Phòng nhiều review (5/5 từ 2 đánh giá).",
+);
+
+assert.equal(
+  viewingChecklist({
+    verification: "verified",
+    reviewCount: 2,
+    hasUtilityRates: true,
+    hasMapLocation: true,
+    distanceToSchool: 400,
+    status: "available",
+  }).priority,
+  "normal",
+);
+assert.deepEqual(
+  viewingChecklist({
+    verification: "unverified",
+    reviewCount: 0,
+    hasUtilityRates: false,
+    hasMapLocation: false,
+    distanceToSchool: null,
+    status: "maintenance",
+  }).items.slice(2),
+  [
+    "Hỏi rõ ngày phòng có thể vào ở và tình trạng sửa chữa hiện tại.",
+    "Xin giấy tờ chứng minh quyền cho thuê hoặc giấy xác nhận của chủ nhà.",
+    "Hỏi đơn giá điện, nước, internet, gửi xe và phí vệ sinh trước khi đặt cọc.",
+  ],
 );
 
 console.log("self-check passed");
