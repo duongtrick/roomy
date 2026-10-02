@@ -371,4 +371,12 @@ assert.deepEqual(
   ],
 );
 
+assert.deepEqual(parseRoomyQuery("em là tân sinh viên ít kinh nghiệm cần phòng gần ICTU"), {
+  keyword: "ictu",
+  maxPrice: 2_000_000,
+  maxDistance: 1200,
+  availableOnly: true,
+  verifiedOnly: true,
+});
+
 console.log("self-check passed");

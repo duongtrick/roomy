@@ -24,6 +24,7 @@ import {
   TextInput,
 } from "@/components/ui";
 import { getRooms, type Room } from "@/lib/api/catalogue";
+import { askRoomySearch, type AiSearchIntent } from "@/lib/api/ai";
 import {
   ANY_AREA,
   DISTANCE_BANDS,
@@ -34,7 +35,6 @@ import {
   type SortKey,
 } from "@/lib/filters";
 import { formatDistance, formatVND } from "@/lib/format";
-import { parseRoomyQuery, type RoomyQueryIntent } from "@/lib/roomy-query";
 import { suggestRooms } from "@/lib/suggest";
 import { useAsync } from "@/hooks/use-async";
 import { useAuth } from "@/hooks/use-auth";
@@ -51,7 +51,8 @@ export default function HomeScreen() {
 
   const [query, setQuery] = useState("");
   const [ask, setAsk] = useState("");
-  const [intent, setIntent] = useState<RoomyQueryIntent | null>(null);
+  const [intent, setIntent] = useState<AiSearchIntent | null>(null);
+  const [askingAi, setAskingAi] = useState(false);
   const [area, setArea] = useState<string>(ANY_AREA);
   const [bandIdx, setBandIdx] = useState(0);
   const [distanceIdx, setDistanceIdx] = useState(0);
@@ -114,10 +115,17 @@ export default function HomeScreen() {
     setSort("newest");
   };
 
-  const applyRoomyQuery = () => {
-    const next = parseRoomyQuery(ask);
-    setIntent(next);
-    setQuery(next.keyword);
+  const applyRoomyQuery = async () => {
+    const text = ask.trim();
+    if (!text) return;
+    setAskingAi(true);
+    try {
+      const next = await askRoomySearch(text);
+      setIntent(next);
+      setQuery(next.keyword);
+    } finally {
+      setAskingAi(false);
+    }
   };
 
   return (
@@ -161,28 +169,40 @@ export default function HomeScreen() {
                     placeholder="Hỏi Roomy: phòng dưới 2 triệu gần ICTU còn trống"
                     style={{ paddingLeft: 42 }}
                     returnKeyType="search"
-                    onSubmitEditing={applyRoomyQuery}
+                    onSubmitEditing={() => void applyRoomyQuery()}
                   />
                 </View>
                 <AccentButton
-                  label="Hỏi Roomy"
+                  label={askingAi ? "Đang hỏi…" : "Hỏi Roomy"}
                   icon={<Sparkles size={16} color={colors.primaryForeground} />}
-                  disabled={!ask.trim()}
-                  onPress={applyRoomyQuery}
+                  disabled={!ask.trim() || askingAi}
+                  onPress={() => void applyRoomyQuery()}
                 />
               </View>
 
               {intent ? (
-                <View style={styles.intentRow}>
-                  {intent.maxPrice != null ? (
-                    <IntentChip label={`Dưới ${formatVND(intent.maxPrice)}`} />
+                <View style={styles.intentBox}>
+                  <View style={styles.intentRow}>
+                    <IntentChip label={intent.source === "llm" ? "AI hiểu ý" : "AI dự phòng"} />
+                    {intent.audience === "freshman" ? <IntentChip label="Tân sinh viên" /> : null}
+                    {intent.maxPrice != null ? (
+                      <IntentChip label={`Dưới ${formatVND(intent.maxPrice)}`} />
+                    ) : null}
+                    {intent.maxDistance != null ? (
+                      <IntentChip label={`Gần ${formatDistance(intent.maxDistance)}`} />
+                    ) : null}
+                    {intent.availableOnly ? <IntentChip label="Còn trống" /> : null}
+                    {intent.verifiedOnly ? <IntentChip label="Đã xác thực" /> : null}
+                    {intent.keyword ? <IntentChip label={intent.keyword} /> : null}
+                  </View>
+                  <Text style={styles.intentNote}>{intent.note}</Text>
+                  {intent.priorities.length > 0 ? (
+                    <View style={{ gap: 4 }}>
+                      {intent.priorities.map((item) => (
+                        <Text key={item} style={styles.intentPriority}>• {item}</Text>
+                      ))}
+                    </View>
                   ) : null}
-                  {intent.maxDistance != null ? (
-                    <IntentChip label={`Gần ${formatDistance(intent.maxDistance)}`} />
-                  ) : null}
-                  {intent.availableOnly ? <IntentChip label="Còn trống" /> : null}
-                  {intent.verifiedOnly ? <IntentChip label="Đã xác thực" /> : null}
-                  {intent.keyword ? <IntentChip label={intent.keyword} /> : null}
                 </View>
               ) : null}
 
@@ -456,6 +476,14 @@ const styles = StyleSheet.create({
   resetChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6 },
   resetLabel: { fontFamily: font.medium, fontSize: 12, color: colors.mutedForeground },
   intentRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  intentBox: {
+    gap: 8,
+    padding: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.tint50,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   intentChip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -463,6 +491,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
   },
   intentLabel: { fontFamily: font.semibold, fontSize: 11, color: colors.primaryDeep },
+  intentNote: { fontFamily: font.medium, fontSize: 12, lineHeight: 18, color: colors.foreground },
+  intentPriority: {
+    fontFamily: font.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.mutedForeground,
+  },
 
   suggestHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   suggestCard: {

@@ -51,17 +51,24 @@ export function parseRoomyQuery(input: string): RoomyQueryIntent {
   const maxDistance = maxDistanceMatch
     ? parseDistance(maxDistanceMatch[1], maxDistanceMatch[2])
     : null;
-  const availableOnly = /\b(con trong|phong trong|dang trong|available|chua ai thue)\b/.test(text);
-  const verifiedOnly = /\b(xac thuc|uy tin|verified|an toan)\b/.test(text);
+  const freshman = /\b(tan sinh vien|nam nhat|lan dau|it kinh nghiem|sinh vien moi)\b/.test(text);
+  const availableOnly = freshman || /\b(con trong|phong trong|dang trong|available|chua ai thue)\b/.test(text);
+  const verifiedOnly = freshman || /\b(xac thuc|uy tin|verified|an toan)\b/.test(text);
 
   text = text
     .replace(/\b(?:gan|duoi|toi da|khong qua|tam|khoang|<=?)\s*\d+(?:[,.]\d+)?\s*(?:trieu|tr|m|d|vnd|km|m)?\b/g, " ")
     .replace(PRICE, " ")
     .replace(DISTANCE, " ")
     .replace(/\b(con trong|phong trong|dang trong|available|chua ai thue|xac thuc|uy tin|verified|an toan)\b/g, " ")
-    .replace(/\b(roomy|phong|tro|can|tim|muon|gan|cho|minh|toi|em|oi)\b/g, " ")
+    .replace(/\b(roomy|phong|tro|can|tim|muon|gan|cho|minh|toi|em|oi|la|tan sinh vien|nam nhat|lan dau|it kinh nghiem|sinh vien moi)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  return { keyword: text, maxPrice, maxDistance, availableOnly, verifiedOnly };
+  return {
+    keyword: text,
+    maxPrice: maxPrice ?? (freshman ? 2_000_000 : null),
+    maxDistance: maxDistance ?? (freshman ? 1200 : null),
+    availableOnly,
+    verifiedOnly,
+  };
 }

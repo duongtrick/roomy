@@ -9,6 +9,7 @@ nhập.
 | Chức năng                  | Hiện trạng | Ở đâu trong app                                   |
 | -------------------------- | ---------- | ------------------------------------------------- |
 | Tìm kiếm phòng (từ khoá)   | Đã có      | Khám phá — ô tìm kiếm, bỏ dấu tiếng Việt          |
+| Hỏi Roomy bằng AI          | Đã có nền tảng | Khám phá — Edge Function `ai-search`, fallback khi chưa cấu hình model |
 | Lọc theo khu vực           | Đã có      | Khám phá — danh sách khu vực lấy từ tin đang đăng |
 | Lọc theo mức giá           | Đã có      | Khám phá — 4 khoảng giá                           |
 | Lọc theo khoảng cách trường | Đã có     | Khám phá — dưới 500 m / 1 km / 2 km               |
@@ -116,6 +117,29 @@ Tài khoản người thuê demo được nối sẵn với một hợp đồng 
 > `EXPO_PUBLIC_` cho nó và đừng đặt trong `.env`: Expo/Metro có thể đưa biến
 > môi trường vào log chẩn đoán. Chỉ dùng `.env.seed` hoặc biến môi trường tạm
 > thời khi chạy script seed.
+
+## AI Search
+
+Ô **Hỏi Roomy** gọi Supabase Edge Function `ai-search`. Function ẩn email, số
+điện thoại và dãy số nhạy cảm trước khi gửi sang mô hình, yêu cầu JSON có cấu
+trúc rồi app tự lọc phòng theo dữ liệu thật. Nếu chưa deploy function hoặc chưa
+set `OPENAI_API_KEY`, app dùng fallback trên máy để vẫn hiểu các câu cơ bản
+như "tân sinh viên gần ICTU dưới 2 triệu".
+
+Deploy function:
+
+```bash
+cd mobile
+npx supabase login
+npx supabase functions deploy ai-search --project-ref <ref>
+npx supabase secrets set OPENAI_API_KEY=<key> --project-ref <ref>
+```
+
+Tuỳ chọn đổi model:
+
+```bash
+npx supabase secrets set OPENAI_MODEL=gpt-5-mini --project-ref <ref>
+```
 
 ## Build Android
 
@@ -301,8 +325,7 @@ scripts/seed.mjs           nạp dữ liệu mẫu
 - Chưa có màn upload ảnh trong app; thêm/sửa phòng nhập lat/lng bằng tay.
 - `src/lib/database.types.ts` viết tay. Có project rồi thì thay bằng
   `npx supabase gen types typescript --project-id <ref>`.
-- Chưa có nền tảng AI/Edge Function; xem `docs/Roomy_AI_Nghien_cuu.md` và
-  `.agents/skills/roomy-ai-features/`.
+- Chưa có ảnh → tin đăng, OCR công tơ, thanh toán QR và embedding search.
 
 ## Bảo trì
 
