@@ -14,6 +14,7 @@ import { compareFavorites } from "../src/lib/favorite-compare.ts";
 import { viewingChecklist } from "../src/lib/viewing-checklist.ts";
 import { aiRoomMatch } from "../src/lib/ai-room-match.ts";
 import { buildBookingNote } from "../src/lib/booking-note-assistant.ts";
+import { roommateFit } from "../src/lib/roommate-fit.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -448,5 +449,30 @@ const bookingNote = buildBookingNote({
 assert.match(bookingNote, /điện, nước/);
 assert.match(bookingNote, /giấy tờ/);
 assert.ok(bookingNote.length <= 280);
+
+assert.equal(
+  roommateFit({
+    title: "Phòng ghép 2 người",
+    description: "Có giường tầng, bàn học và sân phơi chung.",
+    amenities: ["Wifi"],
+    price: 1_100_000,
+    size: 16,
+    verification: "unverified",
+    reviews: [],
+  })?.level,
+  "careful",
+);
+assert.equal(
+  roommateFit({
+    title: "Phòng khép kín riêng",
+    description: "Một người ở thoải mái.",
+    amenities: ["Wifi"],
+    price: 2_000_000,
+    size: 22,
+    verification: "verified",
+    reviews: [],
+  }),
+  null,
+);
 
 console.log("self-check passed");

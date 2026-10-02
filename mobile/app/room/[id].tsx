@@ -43,6 +43,7 @@ import { answerRoomQuestion, type RoomAnswer } from "@/lib/room-qa";
 import { summarizeReviews } from "@/lib/review-summary";
 import { affordabilityAdvice } from "@/lib/affordability-assistant";
 import { viewingChecklist } from "@/lib/viewing-checklist";
+import { roommateFit } from "@/lib/roommate-fit";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -192,6 +193,8 @@ export default function RoomDetailScreen() {
     status: room.status,
   });
   const checklistTone = checklist.priority === "careful" ? colors.amber : colors.blue;
+  const roommate = roommateFit(room);
+  const roommateTone = roommate?.level === "good" ? colors.emerald : colors.amber;
   const askRoom = (value = question) => {
     const next = value.trim();
     if (!next) return;
@@ -486,6 +489,37 @@ export default function RoomDetailScreen() {
               </View>
             </Card>
           </Section>
+
+          {roommate ? (
+            <Section title="Trợ lý ở ghép">
+              <Card
+                style={[
+                  styles.roommateCard,
+                  { backgroundColor: roommateTone.bg, borderColor: roommateTone.border },
+                ]}
+              >
+                <View style={styles.checklistHead}>
+                  <Sparkles size={18} color={roommateTone.fg} />
+                  <Text style={[styles.checklistTitle, { color: roommateTone.fg }]}>
+                    {roommate.title}
+                  </Text>
+                </View>
+                <Text style={[styles.roommateNote, { color: roommateTone.fg }]}>
+                  {roommate.note}
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {roommate.questions.map((item) => (
+                    <View key={item} style={styles.checklistItem}>
+                      <Check size={14} color={roommateTone.fg} />
+                      <Text style={[styles.checklistText, { color: roommateTone.fg }]}>
+                        {item}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            </Section>
+          ) : null}
 
           {room.trueCost || (room.electricityRate != null && room.waterRate != null) ? (
             <Section title="Chi phí sử dụng">
@@ -983,6 +1017,8 @@ const styles = StyleSheet.create({
   depositCheck: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   depositCheckText: { flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
   checklistCard: { gap: 12 },
+  roommateCard: { gap: 12 },
+  roommateNote: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
   checklistHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   checklistTitle: { flex: 1, fontFamily: font.semibold, fontSize: 15 },
   checklistItem: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
