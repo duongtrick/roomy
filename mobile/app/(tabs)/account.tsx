@@ -8,6 +8,7 @@ import {
   LogOut,
   Mail,
   Phone,
+  ReceiptText,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -28,15 +29,33 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { claimTenancy } from "@/lib/api/reviews";
 import { errorMessage } from "@/lib/errors";
+import { formatVND } from "@/lib/format";
+import {
+  tenantCostAssistant,
+  type TenantCostInput,
+  type TenantCostPlan,
+} from "@/lib/tenant-cost-assistant";
 import { triageMaintenance, type MaintenanceTriage } from "@/lib/maintenance-triage";
 import { toast } from "@/components/Toast";
 import { colors, font, radius } from "@/theme";
+
+const EMPTY_COST: TenantCostInput = {
+  rent: "",
+  electricityKwh: "",
+  electricityRate: "",
+  waterM3: "",
+  waterRate: "",
+  otherFee: "",
+  budget: "",
+};
 
 export default function AccountScreen() {
   const { user, isLandlord, isAdmin, loading, configured, signOut } = useAuth();
   const [claiming, setClaiming] = useState(false);
   const [maintenanceText, setMaintenanceText] = useState("");
   const [maintenance, setMaintenance] = useState<MaintenanceTriage | null>(null);
+  const [cost, setCost] = useState<TenantCostInput>(EMPTY_COST);
+  const [costPlan, setCostPlan] = useState<TenantCostPlan | null>(null);
 
   const handleSignOut = async () => {
     await signOut();
@@ -140,6 +159,101 @@ export default function AccountScreen() {
               <>
                 <Card style={{ gap: 12 }}>
                   <View style={styles.cardTitleRow}>
+                    <ReceiptText size={16} color={colors.primary} />
+                    <Text style={styles.claimTitle}>Trợ lý dự trù chi phí tháng</Text>
+                  </View>
+                  <Muted size={12} style={{ lineHeight: 18 }}>
+                    Nhập tiền phòng, điện, nước, phí khác; Roomy tính tổng và cảnh báo nếu vượt ngân
+                    sách.
+                  </Muted>
+                  <View style={styles.inputGrid}>
+                    <View style={styles.inputHalf}>
+                      <Field label="Tiền phòng">
+                        <TextInput
+                          value={cost.rent}
+                          onChangeText={(value) => updateCost("rent", digits(value))}
+                          keyboardType="number-pad"
+                          placeholder="VD: 2000000"
+                        />
+                      </Field>
+                    </View>
+                    <View style={styles.inputHalf}>
+                      <Field label="Ngân sách">
+                        <TextInput
+                          value={cost.budget}
+                          onChangeText={(value) => updateCost("budget", digits(value))}
+                          keyboardType="number-pad"
+                          placeholder="VD: 3000000"
+                        />
+                      </Field>
+                    </View>
+                  </View>
+                  <View style={styles.inputGrid}>
+                    <View style={styles.inputHalf}>
+                      <Field label="Điện kWh">
+                        <TextInput
+                          value={cost.electricityKwh}
+                          onChangeText={(value) => updateCost("electricityKwh", decimal(value))}
+                          keyboardType="decimal-pad"
+                          placeholder="VD: 80"
+                        />
+                      </Field>
+                    </View>
+                    <View style={styles.inputHalf}>
+                      <Field label="Giá điện/kWh">
+                        <TextInput
+                          value={cost.electricityRate}
+                          onChangeText={(value) => updateCost("electricityRate", digits(value))}
+                          keyboardType="number-pad"
+                          placeholder="Mặc định 3500"
+                        />
+                      </Field>
+                    </View>
+                  </View>
+                  <View style={styles.inputGrid}>
+                    <View style={styles.inputHalf}>
+                      <Field label="Nước m³">
+                        <TextInput
+                          value={cost.waterM3}
+                          onChangeText={(value) => updateCost("waterM3", decimal(value))}
+                          keyboardType="decimal-pad"
+                          placeholder="VD: 5"
+                        />
+                      </Field>
+                    </View>
+                    <View style={styles.inputHalf}>
+                      <Field label="Giá nước/m³">
+                        <TextInput
+                          value={cost.waterRate}
+                          onChangeText={(value) => updateCost("waterRate", digits(value))}
+                          keyboardType="number-pad"
+                          placeholder="Mặc định 25000"
+                        />
+                      </Field>
+                    </View>
+                  </View>
+                  <Field label="Phí khác">
+                    <TextInput
+                      value={cost.otherFee}
+                      onChangeText={(value) => updateCost("otherFee", digits(value))}
+                      keyboardType="number-pad"
+                      placeholder="Internet, gửi xe, vệ sinh..."
+                    />
+                  </Field>
+                  <SecondaryButton
+                    label="Phân tích chi phí"
+                    icon={<Sparkles size={16} color={colors.foreground} />}
+                    onPress={() => {
+                      const result = tenantCostAssistant(cost);
+                      setCostPlan(result);
+                      if (!result) toast.info("Nhập ít nhất một khoản chi phí để Roomy phân tích.");
+                    }}
+                  />
+                  {costPlan ? <TenantCostCard result={costPlan} /> : null}
+                </Card>
+
+                <Card style={{ gap: 12 }}>
+                  <View style={styles.cardTitleRow}>
                     <Wrench size={16} color={colors.primary} />
                     <Text style={styles.claimTitle}>Trợ lý báo sự cố</Text>
                   </View>
@@ -215,6 +329,19 @@ export default function AccountScreen() {
       </ScrollView>
     </View>
   );
+
+  function updateCost(key: keyof TenantCostInput, value: string) {
+    setCost((current) => ({ ...current, [key]: value }));
+    setCostPlan(null);
+  }
+}
+
+function digits(value: string) {
+  return value.replace(/\D/g, "").slice(0, 9);
+}
+
+function decimal(value: string) {
+  return value.replace(/[^\d,.]/g, "").replace(",", ".").slice(0, 6);
 }
 
 function MaintenanceCard({ result }: { result: MaintenanceTriage }) {
@@ -245,6 +372,38 @@ function MaintenanceCard({ result }: { result: MaintenanceTriage }) {
   );
 }
 
+function TenantCostCard({ result }: { result: TenantCostPlan }) {
+  const tone =
+    result.tone === "over"
+      ? { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong }
+      : result.tone === "careful"
+        ? colors.amber
+        : colors.emerald;
+
+  return (
+    <View style={[styles.maintenanceBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <Text style={[styles.maintenanceTitle, { color: tone.fg }]}>
+        {result.title} · {formatVND(result.total)}
+      </Text>
+      <Text style={[styles.maintenanceText, { color: tone.fg }]}>{result.note}</Text>
+      <View style={{ gap: 6 }}>
+        {result.lines.map((item) => (
+          <Text key={item} style={[styles.maintenanceText, { color: tone.fg }]}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.messageBox}>
+        {result.tips.map((item) => (
+          <Text key={item} style={styles.messageText}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 16, paddingBottom: 40, gap: 16 },
@@ -269,6 +428,8 @@ const styles = StyleSheet.create({
   role: { fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  inputGrid: { flexDirection: "row", gap: 10 },
+  inputHalf: { flex: 1, minWidth: 0 },
   maintenanceBox: {
     gap: 10,
     padding: 12,

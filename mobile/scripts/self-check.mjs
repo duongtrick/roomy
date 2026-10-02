@@ -19,6 +19,7 @@ import { aiRoomMatch } from "../src/lib/ai-room-match.ts";
 import { buildBookingNote } from "../src/lib/booking-note-assistant.ts";
 import { roommateFit } from "../src/lib/roommate-fit.ts";
 import { triageMaintenance } from "../src/lib/maintenance-triage.ts";
+import { tenantCostAssistant } from "../src/lib/tenant-cost-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -642,5 +643,31 @@ assert.equal(
 assert.equal(triageMaintenance("ổ điện gần bàn học bị chập và có mùi khét")?.priority, "urgent");
 assert.equal(triageMaintenance("wifi phòng em rất yếu từ tối qua")?.category, "Tiện ích");
 assert.equal(triageMaintenance("lỗi")?.priority, undefined);
+
+assert.equal(
+  tenantCostAssistant({
+    rent: "2000000",
+    electricityKwh: "80",
+    electricityRate: "3500",
+    waterM3: "5",
+    waterRate: "25000",
+    otherFee: "150000",
+    budget: "3000000",
+  })?.total,
+  2_555_000,
+);
+assert.equal(
+  tenantCostAssistant({
+    rent: "3000000",
+    electricityKwh: "120",
+    electricityRate: "",
+    waterM3: "8",
+    waterRate: "",
+    otherFee: "200000",
+    budget: "3200000",
+  })?.tone,
+  "over",
+);
+assert.equal(tenantCostAssistant({ rent: "", electricityKwh: "", electricityRate: "", waterM3: "", waterRate: "", otherFee: "", budget: "" }), null);
 
 console.log("self-check passed");
