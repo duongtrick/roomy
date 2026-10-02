@@ -22,6 +22,7 @@ import { triageMaintenance } from "../src/lib/maintenance-triage.ts";
 import { tenantCostAssistant } from "../src/lib/tenant-cost-assistant.ts";
 import { moveInPlan } from "../src/lib/move-in-plan.ts";
 import { roommateProfileAssistant } from "../src/lib/roommate-profile-assistant.ts";
+import { checkDepositMessage } from "../src/lib/deposit-message-assistant.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -748,5 +749,19 @@ assert.equal(
   })?.tone,
   "careful",
 );
+
+assert.equal(
+  checkDepositMessage("Em chuyển cọc giữ phòng trong hôm nay nhé, anh đang ở xa chưa cần xem phòng đâu.")?.level,
+  "danger",
+);
+assert.equal(
+  checkDepositMessage("Đặt cọc bằng gift card hoặc USDT để giữ phòng trong 24h.")?.level,
+  "danger",
+);
+assert.equal(
+  checkDepositMessage("Mai em qua xem phòng, nếu ổn mình làm biên nhận cọc ghi rõ số phòng và ngày vào ở.")?.level,
+  "safe",
+);
+assert.equal(checkDepositMessage("cọc"), null);
 
 console.log("self-check passed");

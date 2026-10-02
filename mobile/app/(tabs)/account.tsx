@@ -9,6 +9,7 @@ import {
   Mail,
   Phone,
   ReceiptText,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   UsersRound,
@@ -31,6 +32,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { claimTenancy } from "@/lib/api/reviews";
 import { errorMessage } from "@/lib/errors";
 import { formatVND } from "@/lib/format";
+import {
+  checkDepositMessage,
+  type DepositMessageCheck,
+} from "@/lib/deposit-message-assistant";
 import {
   tenantCostAssistant,
   type TenantCostInput,
@@ -72,6 +77,8 @@ export default function AccountScreen() {
   const [maintenance, setMaintenance] = useState<MaintenanceTriage | null>(null);
   const [cost, setCost] = useState<TenantCostInput>(EMPTY_COST);
   const [costPlan, setCostPlan] = useState<TenantCostPlan | null>(null);
+  const [depositText, setDepositText] = useState("");
+  const [depositCheck, setDepositCheck] = useState<DepositMessageCheck | null>(null);
   const [roommate, setRoommate] = useState<RoommateProfileInput>(EMPTY_ROOMMATE);
   const [roommateProfile, setRoommateProfile] = useState<RoommateProfile | null>(null);
 
@@ -268,6 +275,39 @@ export default function AccountScreen() {
                     }}
                   />
                   {costPlan ? <TenantCostCard result={costPlan} /> : null}
+                </Card>
+
+                <Card style={{ gap: 12 }}>
+                  <View style={styles.cardTitleRow}>
+                    <ShieldAlert size={16} color={colors.primary} />
+                    <Text style={styles.claimTitle}>Trợ lý kiểm tra tin nhắn cọc</Text>
+                  </View>
+                  <Muted size={12} style={{ lineHeight: 18 }}>
+                    Dán tin nhắn chủ trọ gửi, Roomy chỉ ra cờ đỏ trước khi bạn chuyển tiền hoặc gửi
+                    giấy tờ.
+                  </Muted>
+                  <Field label="Tin nhắn cần kiểm tra">
+                    <TextInput
+                      value={depositText}
+                      onChangeText={(value) => {
+                        setDepositText(value);
+                        setDepositCheck(null);
+                      }}
+                      placeholder="VD: Em chuyển cọc giữ phòng trong hôm nay, chưa cần xem cũng được..."
+                      multiline
+                      maxLength={500}
+                    />
+                  </Field>
+                  <SecondaryButton
+                    label="Kiểm tra rủi ro"
+                    icon={<Sparkles size={16} color={colors.foreground} />}
+                    onPress={() => {
+                      const result = checkDepositMessage(depositText);
+                      setDepositCheck(result);
+                      if (!result) toast.info("Dán tin nhắn dài hơn một chút để Roomy kiểm tra.");
+                    }}
+                  />
+                  {depositCheck ? <DepositCheckCard result={depositCheck} /> : null}
                 </Card>
 
                 <Card style={{ gap: 12 }}>
@@ -504,6 +544,39 @@ function TenantCostCard({ result }: { result: TenantCostPlan }) {
             • {item}
           </Text>
         ))}
+      </View>
+    </View>
+  );
+}
+
+function DepositCheckCard({ result }: { result: DepositMessageCheck }) {
+  const tone =
+    result.level === "danger"
+      ? { bg: colors.tint100, fg: colors.destructive, border: colors.borderStrong }
+      : result.level === "careful"
+        ? colors.amber
+        : colors.emerald;
+
+  return (
+    <View style={[styles.maintenanceBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+      <Text style={[styles.maintenanceTitle, { color: tone.fg }]}>{result.title}</Text>
+      <Text style={[styles.maintenanceText, { color: tone.fg }]}>{result.summary}</Text>
+      <View style={{ gap: 6 }}>
+        {result.flags.map((item) => (
+          <Text key={item} style={[styles.maintenanceText, { color: tone.fg }]}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.messageBox}>
+        {result.nextSteps.map((item) => (
+          <Text key={item} style={styles.messageText}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.messageBox}>
+        <Text style={styles.messageText}>{result.replyDraft}</Text>
       </View>
     </View>
   );
