@@ -44,6 +44,11 @@ import { colors, font, radius, shadow } from "@/theme";
 
 /** Stable identity so `useAsync` does not refetch on every render. */
 const NO_ROOMS: Room[] = [];
+const QUICK_SEARCHES = [
+  "Tân sinh viên cần phòng gần trường, dưới 2 triệu, đã xác thực",
+  "Phòng tiết kiệm còn trống, công khai điện nước",
+  "Ở một mình, ưu tiên an toàn và có đánh giá tốt",
+];
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -117,7 +122,11 @@ export default function HomeScreen() {
   };
 
   const applyRoomyQuery = async () => {
-    const text = ask.trim();
+    await applyRoomyQueryText(ask);
+  };
+
+  const applyRoomyQueryText = async (value: string) => {
+    const text = value.trim();
     if (!text) return;
     setAskingAi(true);
     try {
@@ -206,6 +215,21 @@ export default function HomeScreen() {
                   ) : null}
                 </View>
               ) : null}
+
+              <View style={styles.quickRow}>
+                {QUICK_SEARCHES.map((sample) => (
+                  <Pressable
+                    key={sample}
+                    onPress={() => {
+                      setAsk(sample);
+                      void applyRoomyQueryText(sample);
+                    }}
+                    style={({ pressed }) => [styles.quickChip, pressed && { opacity: 0.75 }]}
+                  >
+                    <Text style={styles.quickText}>{sample}</Text>
+                  </Pressable>
+                ))}
+              </View>
 
               <View style={styles.searchWrap}>
                 <Search size={16} color={colors.mutedForeground} style={styles.searchIcon} />
@@ -460,6 +484,16 @@ const styles = StyleSheet.create({
   searchWrap: { justifyContent: "center" },
   searchIcon: { position: "absolute", left: 16, zIndex: 1 },
   clearIcon: { position: "absolute", right: 14, zIndex: 1 },
+  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  quickChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    backgroundColor: colors.tint100,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickText: { fontFamily: font.medium, fontSize: 11, color: colors.primaryDeep },
 
   toggleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   chip: {

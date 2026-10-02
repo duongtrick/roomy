@@ -60,7 +60,11 @@ export function parseRoomyQuery(input: string): RoomyQueryIntent {
     .replace(PRICE, " ")
     .replace(DISTANCE, " ")
     .replace(/\b(con trong|phong trong|dang trong|available|chua ai thue|xac thuc|uy tin|verified|an toan)\b/g, " ")
-    .replace(/\b(roomy|phong|tro|can|tim|muon|gan|cho|minh|toi|em|oi|la|tan sinh vien|nam nhat|lan dau|it kinh nghiem|sinh vien moi)\b/g, " ")
+    .replace(
+      /\b(roomy|phong|tro|can|tim|muon|gan|cho|minh|toi|em|oi|la|tan sinh vien|nam nhat|lan dau|it kinh nghiem|sinh vien moi|truong|duoi|da|duoc|tiet kiem|cong khai|dien|nuoc|mot minh|o mot minh|uu tien|tot|danh gia)\b/g,
+      " ",
+    )
+    .replace(/[,.]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 

@@ -5,7 +5,7 @@ import { Heart, LogIn, Sparkles } from "lucide-react-native";
 import { BrandHeader, PageHeading } from "@/components/ScreenHeader";
 import { RoomCard } from "@/components/RoomCard";
 import { Loading, LoadError } from "@/components/AsyncState";
-import { AccentButton, Card, EmptyState } from "@/components/ui";
+import { AccentButton, Card, EmptyState, Field, TextInput } from "@/components/ui";
 import { getRooms, type Room } from "@/lib/api/catalogue";
 import {
   compareFavorites,
@@ -13,6 +13,10 @@ import {
   type FavoriteCompareResult,
   type FavoriteProfile,
 } from "@/lib/favorite-compare";
+import {
+  tenantDecisionAssistant,
+  type TenantDecision,
+} from "@/lib/tenant-decision-assistant";
 import { useAsync } from "@/hooks/use-async";
 import { useAuth } from "@/hooks/use-auth";
 import { useFavorites } from "@/hooks/use-favorites";
@@ -26,9 +30,14 @@ export default function FavoritesScreen() {
   const { ids, reload: reloadFavorites } = useFavorites();
   const { data: rooms, loading, error, reload } = useAsync(getRooms, NO_ROOMS);
   const [profile, setProfile] = useState<FavoriteProfile>("freshman");
+  const [budget, setBudget] = useState("");
 
   const saved = useMemo(() => rooms.filter((r) => ids.includes(r.id)), [rooms, ids]);
   const comparison = useMemo(() => compareFavorites(saved, profile), [saved, profile]);
+  const decision = useMemo(
+    () => tenantDecisionAssistant(saved, profile, budget),
+    [saved, profile, budget],
+  );
 
   // Favourites live on the account now, so there is nothing to show — and
   // nothing to fetch — until someone signs in.
@@ -92,7 +101,10 @@ export default function FavoritesScreen() {
             {comparison ? (
               <FavoriteCompareCard
                 comparison={comparison}
+                decision={decision}
                 profile={profile}
+                budget={budget}
+                onBudgetChange={setBudget}
                 onProfileChange={setProfile}
               />
             ) : null}
@@ -119,11 +131,17 @@ export default function FavoritesScreen() {
 
 function FavoriteCompareCard({
   comparison,
+  decision,
   profile,
+  budget,
+  onBudgetChange,
   onProfileChange,
 }: {
   comparison: FavoriteCompareResult;
+  decision: TenantDecision | null;
   profile: FavoriteProfile;
+  budget: string;
+  onBudgetChange: (value: string) => void;
   onProfileChange: (profile: FavoriteProfile) => void;
 }) {
   return (
@@ -151,6 +169,15 @@ function FavoriteCompareCard({
           );
         })}
       </View>
+      <Field label="Ngân sách tối đa/tháng">
+        <TextInput
+          value={budget}
+          onChangeText={(value) => onBudgetChange(value.replace(/\D/g, "").slice(0, 9))}
+          keyboardType="number-pad"
+          placeholder="VD: 3000000"
+        />
+      </Field>
+      {decision ? <TenantDecisionCard decision={decision} /> : null}
       <View style={styles.recommendBox}>
         <Text style={styles.recommendTitle}>
           Nên xem trước: {comparison.recommendation.title} · {comparison.recommendation.score}/100
@@ -172,6 +199,36 @@ function FavoriteCompareCard({
         </View>
       ) : null}
     </Card>
+  );
+}
+
+function TenantDecisionCard({ decision }: { decision: TenantDecision }) {
+  return (
+    <View style={styles.decisionBox}>
+      <Text style={styles.decisionTitle}>{decision.title}</Text>
+      <Text style={styles.compareSummary}>{decision.summary}</Text>
+      <Text style={styles.decisionNext}>Xem trước: {decision.nextRoomTitle}</Text>
+      <Text style={styles.compareText}>{decision.budgetNote}</Text>
+      <View style={{ gap: 6 }}>
+        {decision.plan.map((item) => (
+          <Text key={item} style={styles.compareText}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.questionBox}>
+        <Text style={styles.questionTitle}>Câu hỏi cần mang theo</Text>
+        {decision.questions.map((item) => (
+          <Text key={item} style={styles.cautionText}>
+            • {item}
+          </Text>
+        ))}
+      </View>
+      <AccentButton
+        label="Mở phòng đề xuất"
+        onPress={() => router.push({ pathname: "/room/[id]", params: { id: decision.nextRoomId } })}
+      />
+    </View>
   );
 }
 
@@ -219,6 +276,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: colors.emerald.fg,
+  },
+  decisionBox: {
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.blue.border,
+  },
+  decisionTitle: {
+    fontFamily: font.semibold,
+    fontSize: 13,
+    color: colors.primaryDeep,
+  },
+  decisionNext: {
+    fontFamily: font.bold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.primaryDeep,
+  },
+  questionBox: {
+    gap: 5,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  questionTitle: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.mutedForeground,
   },
   cautionBox: {
     gap: 4,

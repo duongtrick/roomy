@@ -12,6 +12,7 @@ import { renewalAssistant } from "../src/lib/lease-renewal-assistant.ts";
 import { bookingAssistant } from "../src/lib/booking-assistant.ts";
 import { affordabilityAdvice } from "../src/lib/affordability-assistant.ts";
 import { compareFavorites } from "../src/lib/favorite-compare.ts";
+import { tenantDecisionAssistant } from "../src/lib/tenant-decision-assistant.ts";
 import { viewingChecklist } from "../src/lib/viewing-checklist.ts";
 import { aiRoomMatch } from "../src/lib/ai-room-match.ts";
 import { buildBookingNote } from "../src/lib/booking-note-assistant.ts";
@@ -420,6 +421,57 @@ assert.equal(
   ])?.picks.find((item) => item.startsWith("Đáng tin hơn:")),
   "Đáng tin hơn: Phòng nhiều review (5/5 từ 2 đánh giá).",
 );
+assert.equal(
+  tenantDecisionAssistant(
+    [
+      {
+        id: "cheap",
+        title: "Phòng rẻ thiếu điện nước",
+        price: 1_500_000,
+        status: "available",
+        distanceToSchool: 300,
+        verification: "unverified",
+        electricityRate: null,
+        waterRate: null,
+        reviews: [],
+      },
+      {
+        id: "safe",
+        title: "Phòng rõ chi phí",
+        price: 1_800_000,
+        status: "available",
+        distanceToSchool: 600,
+        verification: "verified",
+        electricityRate: 3500,
+        waterRate: 25000,
+        reviews: [{ rating: 5 }],
+      },
+    ],
+    "freshman",
+    "2500000",
+  )?.nextRoomId,
+  "safe",
+);
+assert.match(
+  tenantDecisionAssistant(
+    [
+      {
+        id: "over",
+        title: "Phòng vượt ngân sách",
+        price: 3_000_000,
+        status: "available",
+        distanceToSchool: 500,
+        verification: "verified",
+        electricityRate: 3500,
+        waterRate: 25000,
+        reviews: [],
+      },
+    ],
+    "budget",
+    "2000000",
+  )?.budgetNote ?? "",
+  /vượt ngân sách/,
+);
 
 assert.equal(
   viewingChecklist({
@@ -478,6 +530,13 @@ assert.equal(
 
 assert.deepEqual(parseRoomyQuery("em là tân sinh viên ít kinh nghiệm cần phòng gần ICTU"), {
   keyword: "ictu",
+  maxPrice: 2_000_000,
+  maxDistance: 1200,
+  availableOnly: true,
+  verifiedOnly: true,
+});
+assert.deepEqual(parseRoomyQuery("Tân sinh viên cần phòng gần trường, dưới 2 triệu, đã xác thực"), {
+  keyword: "",
   maxPrice: 2_000_000,
   maxDistance: 1200,
   availableOnly: true,
