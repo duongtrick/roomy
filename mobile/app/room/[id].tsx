@@ -42,7 +42,7 @@ import { hasCoords, openDirections } from "@/lib/maps-link";
 import { answerRoomQuestion, type RoomAnswer } from "@/lib/room-qa";
 import { summarizeReviews } from "@/lib/review-summary";
 import { affordabilityAdvice } from "@/lib/affordability-assistant";
-import { viewingChecklist } from "@/lib/viewing-checklist";
+import { viewingChecklist, type ViewingProfile } from "@/lib/viewing-checklist";
 import { roommateFit } from "@/lib/roommate-fit";
 import { VERIFICATION_COLOR, VERIFICATION_LABEL, VERIFICATION_NOTE } from "@/lib/verification";
 import { useAsync } from "@/hooks/use-async";
@@ -54,6 +54,11 @@ const EMPTY: Detail = { room: null, related: [] };
 const NO_REVIEW: ReviewState = { canReview: false, mine: null };
 const DEFAULT_ELECTRICITY_KWH = "80";
 const DEFAULT_WATER_M3 = "4";
+const VIEWING_PROFILES: { value: ViewingProfile; label: string }[] = [
+  { value: "freshman", label: "Tân SV" },
+  { value: "budget", label: "Tiết kiệm" },
+  { value: "solo", label: "Đi một mình" },
+];
 
 export default function RoomDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -65,6 +70,7 @@ export default function RoomDetailScreen() {
   const [monthlyBudget, setMonthlyBudget] = useState("");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<RoomAnswer | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<ViewingProfile>("freshman");
 
   useEffect(() => {
     setActive(0);
@@ -191,7 +197,7 @@ export default function RoomDetailScreen() {
     hasMapLocation: hasCoords(room.lat, room.lng),
     distanceToSchool: room.distanceToSchool,
     status: room.status,
-  });
+  }, viewingProfile);
   const checklistTone = checklist.priority === "careful" ? colors.amber : colors.blue;
   const roommate = roommateFit(room);
   const roommateTone = roommate?.level === "good" ? colors.emerald : colors.amber;
@@ -471,11 +477,44 @@ export default function RoomDetailScreen() {
                 { backgroundColor: checklistTone.bg, borderColor: checklistTone.border },
               ]}
             >
+              <View style={styles.viewingTabs}>
+                {VIEWING_PROFILES.map((profile) => {
+                  const activeProfile = profile.value === viewingProfile;
+                  return (
+                    <Pressable
+                      key={profile.value}
+                      onPress={() => setViewingProfile(profile.value)}
+                      accessibilityRole="button"
+                      accessibilityLabel={profile.label}
+                      style={({ pressed }) => [
+                        styles.viewingTab,
+                        activeProfile && styles.viewingTabActive,
+                        pressed && { opacity: 0.75 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.viewingTabText,
+                          activeProfile && styles.viewingTabTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {profile.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <View style={styles.checklistHead}>
                 <Sparkles size={18} color={checklistTone.fg} />
-                <Text style={[styles.checklistTitle, { color: checklistTone.fg }]}>
-                  {checklist.title}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.checklistTitle, { color: checklistTone.fg }]}>
+                    {checklist.title}
+                  </Text>
+                  <Text style={[styles.checklistFocus, { color: checklistTone.fg }]}>
+                    {checklist.focus}
+                  </Text>
+                </View>
               </View>
               <View style={{ gap: 8 }}>
                 {checklist.items.map((item) => (
@@ -485,6 +524,36 @@ export default function RoomDetailScreen() {
                       {item}
                     </Text>
                   </View>
+                ))}
+              </View>
+              <View style={styles.checklistGroup}>
+                <Text style={[styles.checklistGroupTitle, { color: checklistTone.fg }]}>
+                  Hỏi chủ trọ
+                </Text>
+                {checklist.questions.map((item) => (
+                  <Text key={item} style={[styles.checklistText, { color: checklistTone.fg }]}>
+                    • {item}
+                  </Text>
+                ))}
+              </View>
+              <View style={styles.checklistGroup}>
+                <Text style={[styles.checklistGroupTitle, { color: checklistTone.fg }]}>
+                  Cờ đỏ cần dừng lại
+                </Text>
+                {checklist.redFlags.map((item) => (
+                  <Text key={item} style={[styles.checklistText, { color: checklistTone.fg }]}>
+                    • {item}
+                  </Text>
+                ))}
+              </View>
+              <View style={styles.checklistGroup}>
+                <Text style={[styles.checklistGroupTitle, { color: checklistTone.fg }]}>
+                  Giấy tờ và bằng chứng
+                </Text>
+                {checklist.documents.map((item) => (
+                  <Text key={item} style={[styles.checklistText, { color: checklistTone.fg }]}>
+                    • {item}
+                  </Text>
                 ))}
               </View>
             </Card>
@@ -1019,10 +1088,40 @@ const styles = StyleSheet.create({
   checklistCard: { gap: 12 },
   roommateCard: { gap: 12 },
   roommateNote: { fontFamily: font.regular, fontSize: 12, lineHeight: 18 },
+  viewingTabs: { flexDirection: "row", gap: 8 },
+  viewingTab: {
+    flex: 1,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    borderRadius: radius.full,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  viewingTabActive: {
+    backgroundColor: colors.primaryDeep,
+    borderColor: colors.primaryDeep,
+  },
+  viewingTabText: {
+    fontFamily: font.semibold,
+    fontSize: 11,
+    color: colors.mutedForeground,
+  },
+  viewingTabTextActive: { color: colors.primaryForeground },
   checklistHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   checklistTitle: { flex: 1, fontFamily: font.semibold, fontSize: 15 },
+  checklistFocus: { fontFamily: font.regular, fontSize: 12, lineHeight: 18, marginTop: 2 },
   checklistItem: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   checklistText: { flex: 1, fontFamily: font.medium, fontSize: 12, lineHeight: 18 },
+  checklistGroup: { gap: 6, paddingTop: 2 },
+  checklistGroupTitle: {
+    fontFamily: font.bold,
+    fontSize: 10,
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+  },
   qaCard: { gap: 12 },
   qaInputRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   qaButton: {

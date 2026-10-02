@@ -415,6 +415,34 @@ assert.deepEqual(
     "Hỏi đơn giá điện, nước, internet, gửi xe và phí vệ sinh trước khi đặt cọc.",
   ],
 );
+assert.equal(
+  viewingChecklist(
+    {
+      verification: "verified",
+      reviewCount: 2,
+      hasUtilityRates: true,
+      hasMapLocation: true,
+      distanceToSchool: 300,
+      status: "available",
+    },
+    "budget",
+  ).questions.some((item) => /Mùa cao điểm/.test(item)),
+  true,
+);
+assert.equal(
+  viewingChecklist(
+    {
+      verification: "verified",
+      reviewCount: 2,
+      hasUtilityRates: true,
+      hasMapLocation: true,
+      distanceToSchool: 300,
+      status: "available",
+    },
+    "solo",
+  ).redFlags.some((item) => /khóa cửa yếu/.test(item)),
+  true,
+);
 
 assert.deepEqual(parseRoomyQuery("em là tân sinh viên ít kinh nghiệm cần phòng gần ICTU"), {
   keyword: "ictu",
