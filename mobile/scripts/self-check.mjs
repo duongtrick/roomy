@@ -15,6 +15,7 @@ import { viewingChecklist } from "../src/lib/viewing-checklist.ts";
 import { aiRoomMatch } from "../src/lib/ai-room-match.ts";
 import { buildBookingNote } from "../src/lib/booking-note-assistant.ts";
 import { roommateFit } from "../src/lib/roommate-fit.ts";
+import { triageMaintenance } from "../src/lib/maintenance-triage.ts";
 
 const source = readFileSync(new URL("../src/hooks/use-auth.tsx", import.meta.url), "utf8");
 const match = source.match(/const ROLE_RANK:[^\n]+/);
@@ -474,5 +475,9 @@ assert.equal(
   }),
   null,
 );
+
+assert.equal(triageMaintenance("ổ điện gần bàn học bị chập và có mùi khét")?.priority, "urgent");
+assert.equal(triageMaintenance("wifi phòng em rất yếu từ tối qua")?.category, "Tiện ích");
+assert.equal(triageMaintenance("lỗi")?.priority, undefined);
 
 console.log("self-check passed");
