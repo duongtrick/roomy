@@ -319,6 +319,36 @@ assert.deepEqual(
     "Đáng tin hơn: Phòng A (đã xác thực).",
   ],
 );
+assert.equal(
+  compareFavorites(
+    [
+      {
+        id: "cheap",
+        title: "Phòng rẻ chưa xác thực",
+        price: 1_500_000,
+        distanceToSchool: 300,
+        status: "available",
+        verification: "unverified",
+        electricityRate: null,
+        waterRate: null,
+        reviews: [],
+      },
+      {
+        id: "safe",
+        title: "Phòng an toàn",
+        price: 1_800_000,
+        distanceToSchool: 650,
+        status: "available",
+        verification: "verified",
+        electricityRate: 3500,
+        waterRate: 25000,
+        reviews: [{ rating: 5 }],
+      },
+    ],
+    "freshman",
+  )?.recommendation.roomId,
+  "safe",
+);
 
 assert.equal(
   compareFavorites([

@@ -3,17 +3,32 @@ export type FavoriteCompareRoom = {
   title: string;
   price: number;
   distanceToSchool: number | null;
+  status?: "available" | "occupied" | "maintenance";
   verification: "unverified" | "pending" | "verified";
   electricityRate: number | null;
   waterRate: number | null;
   reviews: { rating: number }[];
 };
 
+export type FavoriteProfile = "freshman" | "budget" | "safe";
+
 export type FavoriteCompareResult = {
   title: string;
   summary: string;
+  recommendation: {
+    roomId: string;
+    title: string;
+    score: number;
+    reasons: string[];
+  };
   picks: string[];
   cautions: string[];
+};
+
+export const FAVORITE_PROFILE_LABEL: Record<FavoriteProfile, string> = {
+  freshman: "Tân sinh viên",
+  budget: "Tiết kiệm",
+  safe: "An toàn",
 };
 
 function money(value: number) {
@@ -42,7 +57,47 @@ function trustLabel(room: FavoriteCompareRoom) {
   return "";
 }
 
-export function compareFavorites(rooms: FavoriteCompareRoom[]): FavoriteCompareResult | null {
+function scoreRoom(room: FavoriteCompareRoom, profile: FavoriteProfile, cheapest: number) {
+  let score = 40;
+  const reasons: string[] = [];
+
+  if (room.status === "available" || room.status == null) {
+    score += 12;
+    reasons.push("còn nhận lịch xem");
+  }
+  if (room.verification === "verified") {
+    score += profile === "safe" || profile === "freshman" ? 22 : 14;
+    reasons.push("đã xác thực");
+  }
+  if (room.price === cheapest) {
+    score += profile === "budget" ? 24 : 12;
+    reasons.push("rẻ nhất trong danh sách");
+  } else if (room.price <= cheapest + 300_000) {
+    score += profile === "budget" ? 12 : 8;
+    reasons.push("giá vẫn sát lựa chọn rẻ nhất");
+  }
+  if (room.distanceToSchool != null && room.distanceToSchool <= 700) {
+    score += profile === "freshman" ? 18 : 10;
+    reasons.push("gần trường");
+  }
+  if (room.electricityRate != null && room.waterRate != null) {
+    score += 8;
+    reasons.push("công khai điện nước");
+  }
+  if (averageRating(room) >= 4.5) {
+    score += profile === "safe" ? 14 : 8;
+    reasons.push("đánh giá tốt");
+  }
+  if (room.verification !== "verified" && profile === "safe") score -= 12;
+  if (room.status && room.status !== "available") score -= 20;
+
+  return { room, score: Math.max(0, Math.min(100, score)), reasons: reasons.slice(0, 3) };
+}
+
+export function compareFavorites(
+  rooms: FavoriteCompareRoom[],
+  profile: FavoriteProfile = "freshman",
+): FavoriteCompareResult | null {
   if (rooms.length < 2) return null;
 
   const cheapest = [...rooms].sort((a, b) => a.price - b.price)[0];
@@ -54,6 +109,9 @@ export function compareFavorites(rooms: FavoriteCompareRoom[]): FavoriteCompareR
     if (verifiedScore !== 0) return verifiedScore;
     return averageRating(b) - averageRating(a);
   })[0];
+  const recommended = rooms
+    .map((room) => scoreRoom(room, profile, cheapest.price))
+    .sort((a, b) => b.score - a.score)[0];
 
   const picks = [
     `Rẻ nhất: ${cheapest.title} (${money(cheapest.price)}/tháng).`,
@@ -72,7 +130,13 @@ export function compareFavorites(rooms: FavoriteCompareRoom[]): FavoriteCompareR
 
   return {
     title: `So sánh ${rooms.length} phòng đã lưu`,
-    summary: "Roomy gợi ý theo giá, khoảng cách, xác thực và đánh giá hiện có.",
+    summary: `Roomy đang ưu tiên hồ sơ ${FAVORITE_PROFILE_LABEL[profile].toLowerCase()}.`,
+    recommendation: {
+      roomId: recommended.room.id,
+      title: recommended.room.title,
+      score: recommended.score,
+      reasons: recommended.reasons,
+    },
     picks,
     cautions: cautions.slice(0, 3),
   };
